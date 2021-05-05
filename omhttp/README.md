@@ -1,6 +1,8 @@
 # OpenMetrics HTTP
 
-The `omhttp` package provides convenience helpers for HTTP servers.
+[![Go Reference](https://pkg.go.dev/badge/github.com/bsm/openmetrics.svg)](https://pkg.go.dev/github.com/bsm/openmetrics/omhttp)
+
+The `omhttp` package provides HTTP-related convenience helpers.
 
 ## Examples
 
