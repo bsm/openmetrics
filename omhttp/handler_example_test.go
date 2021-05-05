@@ -22,7 +22,7 @@ func ExampleNewHandler() {
 	mux.Handle("/metrics", omhttp.NewHandler(reg))
 
 	// Record a mock request.
-	httpRequests.Must("/home", "200").Add(1)
+	httpRequests.Must("/home", "200").MustAdd(1)
 
 	// GET /metrics endpoint.
 	w := httptest.NewRecorder()

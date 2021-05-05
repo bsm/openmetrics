@@ -46,9 +46,9 @@ func ExampleInstrument() {
 			elapsed = 187 * time.Millisecond
 		}
 
-		httpRequests.Must(req.URL.Path, statusString).Add(1)
-		httpRequestBytes.Must(req.URL.Path, statusString).Add(float64(bytes))
-		httpRequestTimes.Must(req.URL.Path, statusString).Observe(elapsed.Seconds())
+		httpRequests.Must(req.URL.Path, statusString).MustAdd(1)
+		httpRequestBytes.Must(req.URL.Path, statusString).MustAdd(float64(bytes))
+		httpRequestTimes.Must(req.URL.Path, statusString).MustObserve(elapsed.Seconds())
 	})
 
 	// Serve two requests.

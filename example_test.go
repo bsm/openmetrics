@@ -21,8 +21,8 @@ func Example() {
 		Labels: []string{"status"},
 	}, .005, .01, .05, .1, .5, 1, 5, 10)
 
-	requestCount.Must("200").Add(1)
-	responseTime.Must("200").Observe(0.56)
+	requestCount.Must("200").MustAdd(1)
+	responseTime.Must("200").MustObserve(0.56)
 
 	var buf bytes.Buffer
 	if _, err := reg.WriteTo(&buf); err != nil {

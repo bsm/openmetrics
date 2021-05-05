@@ -59,6 +59,13 @@ type Counter interface {
 	// The combined length of the label names and values of MUST NOT exceed 128 UTF-8 characters.
 	AddWithExemplarAt(val float64, tt time.Time, labels LabelSet) error
 
+	// MustAdd behaves like Add but panics on invalid inputs.
+	MustAdd(val float64)
+	// MustAddWithExemplar behaves like AddWithExemplar but panics on invalid inputs.
+	MustAddWithExemplar(val float64, labels LabelSet)
+	// MustAddWithExemplarAt behaves like AddWithExemplarAt but panics on invalid inputs.
+	MustAddWithExemplarAt(val float64, tt time.Time, labels LabelSet)
+
 	// Reset resets the created time to now and the total to 0.
 	Reset()
 	// ResetAt resets the created time to t and the total to 0.
@@ -142,6 +149,24 @@ func (t *counter) AddWithExemplarAt(val float64, tt time.Time, labels LabelSet) 
 		ox.release()
 	}
 	return nil
+}
+
+func (t *counter) MustAdd(val float64) {
+	if err := t.Add(val); err != nil {
+		panic(err)
+	}
+}
+
+func (t *counter) MustAddWithExemplar(val float64, labels LabelSet) {
+	if err := t.AddWithExemplar(val, labels); err != nil {
+		panic(err)
+	}
+}
+
+func (t *counter) MustAddWithExemplarAt(val float64, tt time.Time, labels LabelSet) {
+	if err := t.AddWithExemplarAt(val, tt, labels); err != nil {
+		panic(err)
+	}
 }
 
 func (t *counter) Reset() {

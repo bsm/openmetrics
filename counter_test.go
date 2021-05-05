@@ -19,9 +19,7 @@ func TestCounter(t *testing.T) {
 		t.Fatalf("expected %v, got %v", exp, got)
 	}
 
-	if err := ist.Add(7.5); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	ist.MustAdd(7.5)
 	if exp, got := 7.5, ist.Total(); exp != got {
 		t.Fatalf("expected %v, got %v", exp, got)
 	}
@@ -35,9 +33,8 @@ func TestCounter_AddWithExemplar(t *testing.T) {
 	if got := ist.Exemplar(); got != nil {
 		t.Fatalf("expected nil, got %v", got)
 	}
-	if err := ist.AddWithExemplar(1.5, nil); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+
+	ist.MustAddWithExemplar(1.5, nil)
 	if exp, got := 1.5, ist.Total(); exp != got {
 		t.Fatalf("expected %v, got %v", exp, got)
 	}
@@ -45,12 +42,10 @@ func TestCounter_AddWithExemplar(t *testing.T) {
 		t.Fatalf("expected:\n\t%+v, got:\n\t%+v", exp, got)
 	}
 
-	if err := ist.AddWithExemplar(1.6, LabelSet{
+	ist.MustAddWithExemplar(1.6, LabelSet{
 		{Name: "one", Value: "hi"},
 		{Name: "two", Value: "lo"},
-	}); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	})
 	if exp, got := 3.1, ist.Total(); exp != got {
 		t.Fatalf("expected %v, got %v", exp, got)
 	}
@@ -71,12 +66,10 @@ func TestCounter_AddWithExemplarAt(t *testing.T) {
 	if got := ist.Exemplar(); got != nil {
 		t.Fatalf("expected nil, got %v", got)
 	}
-	if err := ist.AddWithExemplarAt(1.5, now, LabelSet{
+	ist.MustAddWithExemplarAt(1.5, now, LabelSet{
 		{Name: "one", Value: "hi"},
 		{Name: "two", Value: "lo"},
-	}); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	})
 	if exp, got := 1.5, ist.Total(); exp != got {
 		t.Fatalf("expected %v, got %v", exp, got)
 	}
@@ -118,9 +111,7 @@ func TestCounter_AppendPoints(t *testing.T) {
 	tt1 := tt0.Add(47 * time.Minute)
 
 	ist := NewCounterAt(tt0)
-	if err := ist.Add(7.5); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	ist.MustAdd(7.5)
 
 	xl := LabelSet{{Name: "one", Value: "hi"}, {Name: "two", Value: "lo"}}
 	if err := ist.AddWithExemplarAt(1.5, tt1, xl); err != nil {

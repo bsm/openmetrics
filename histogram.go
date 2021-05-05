@@ -60,6 +60,13 @@ type Histogram interface {
 	// The combined length of the label names and values of MUST NOT exceed 128 UTF-8 characters.
 	ObserveWithExemplarAt(val float64, tt time.Time, labels LabelSet) error
 
+	// MustObserve behaves like Observe but panics on errors.
+	MustObserve(val float64)
+	// MustObserveWithExemplarAt behaves like ObserveWithExemplarAt but panics on errors.
+	MustObserveWithExemplar(val float64, labels LabelSet)
+	// MustObserveWithExemplarAt behaves like ObserveWithExemplarAt but panics on errors.
+	MustObserveWithExemplarAt(val float64, tt time.Time, labels LabelSet)
+
 	// Reset resets the histogram to its original state.
 	Reset()
 	// ResetAt resets the histogram to its original state with created time set to t.
@@ -206,6 +213,24 @@ func (t *histogram) ObserveWithExemplarAt(val float64, tt time.Time, labels Labe
 		ox.release()
 	}
 	return nil
+}
+
+func (t *histogram) MustObserve(val float64) {
+	if err := t.Observe(val); err != nil {
+		panic(err)
+	}
+}
+
+func (t *histogram) MustObserveWithExemplar(val float64, labels LabelSet) {
+	if err := t.ObserveWithExemplar(val, labels); err != nil {
+		panic(err)
+	}
+}
+
+func (t *histogram) MustObserveWithExemplarAt(val float64, tt time.Time, labels LabelSet) {
+	if err := t.ObserveWithExemplarAt(val, tt, labels); err != nil {
+		panic(err)
+	}
 }
 
 func (t *histogram) Reset() {

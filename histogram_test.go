@@ -29,12 +29,8 @@ func TestHistogram(t *testing.T) {
 		t.Fatalf("expected %v, got %v", exp, got)
 	}
 
-	if err := ist.Observe(0.03); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if err := ist.Observe(1.2); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	ist.MustObserve(0.03)
+	ist.MustObserve(1.2)
 	if exp, got := int64(2), ist.Count(); exp != got {
 		t.Fatalf("expected %v, got %v", exp, got)
 	}
@@ -45,12 +41,10 @@ func TestHistogram(t *testing.T) {
 		t.Fatalf("expected %v, got %v", exp, got)
 	}
 
-	if err := ist.ObserveWithExemplarAt(0.71, now.Add(time.Second), LabelSet{
+	ist.MustObserveWithExemplarAt(0.71, now.Add(time.Second), LabelSet{
 		{Name: "one", Value: "hi"},
 		{Name: "two", Value: "lo"},
-	}); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	})
 	if exp, got := int64(3), ist.Count(); exp != got {
 		t.Fatalf("expected %v, got %v", exp, got)
 	}

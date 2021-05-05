@@ -49,10 +49,10 @@ func TestRegistry(t *testing.T) {
 func TestRegistry_Counter(t *testing.T) {
 	reg := NewConsistentRegistry(mockNow)
 	foo := reg.MustCounter(Desc{Name: "foo", Help: "Some text and \n some \" escaping"})
-	foo.Must().Add(17.1)
+	foo.Must().MustAdd(17.1)
 	bar := reg.MustCounter(Desc{Name: "bar", Unit: "hits", Labels: []string{"path"}})
-	bar.Must("/").Add(2)
-	bar.Must("/about").Add(1)
+	bar.Must("/").MustAdd(2)
+	bar.Must("/about").MustAdd(1)
 
 	checkOutput(t, reg, `
 		# TYPE foo counter
@@ -97,14 +97,14 @@ func TestRegistry_Histogram(t *testing.T) {
 	foo := reg.MustHistogram(Desc{Name: "foo", Labels: []string{"a"}}, 0.01, .1, 1, 10, 100)
 	rnd := rand.New(rand.NewSource(1))
 	for i := 0; i < 100; i++ {
-		foo.Must("b").Observe(math.Exp(rnd.NormFloat64()*3 - 3))
+		foo.Must("b").MustObserve(math.Exp(rnd.NormFloat64()*3 - 3))
 	}
 	for i := 0; i < 100; i++ {
-		foo.Must("").Observe(math.Exp(rnd.NormFloat64()*3 - 3))
+		foo.Must("").MustObserve(math.Exp(rnd.NormFloat64()*3 - 3))
 	}
-	foo.Must("b").ObserveWithExemplar(0.054, nil)
-	foo.Must("b").ObserveWithExemplar(0.67, LabelSet{{Name: "trace_id", Value: "KOO5S4vxi0o"}})
-	foo.Must("b").ObserveWithExemplarAt(9.8, mockTime.Truncate(time.Second), LabelSet{{Name: "trace_id", Value: "oHg5SJYRHA0"}})
+	foo.Must("b").MustObserveWithExemplar(0.054, nil)
+	foo.Must("b").MustObserveWithExemplar(0.67, LabelSet{{Name: "trace_id", Value: "KOO5S4vxi0o"}})
+	foo.Must("b").MustObserveWithExemplarAt(9.8, mockTime.Truncate(time.Second), LabelSet{{Name: "trace_id", Value: "oHg5SJYRHA0"}})
 
 	checkOutput(t, reg, `
 		# TYPE foo histogram
@@ -148,8 +148,8 @@ func TestRegistry_StateSet(t *testing.T) {
 	reg := NewConsistentRegistry(mockNow)
 
 	foo := reg.MustStateSet(Desc{Name: "foo", Labels: []string{"a"}}, "one", "two")
-	foo.Must("b").Set("one", true)
-	foo.Must("c").Set("two", true)
+	foo.Must("b").MustSet("one", true)
+	foo.Must("c").MustSet("two", true)
 	foo.Must("")
 
 	checkOutput(t, reg, `
@@ -181,8 +181,8 @@ func BenchmarkRegistry_WriteTo(b *testing.B) {
 	for i := 0; i < 10_000; i++ {
 		name := fmt.Sprintf("cnt_%04d", i+1)
 		cnt := reg.MustCounter(Desc{Name: name, Unit: "hits", Labels: []string{"a"}})
-		cnt.Must("b").Add(float64(i / 10))
-		cnt.Must("c").Add(float64(i / 100))
+		cnt.Must("b").MustAdd(float64(i / 10))
+		cnt.Must("c").MustAdd(float64(i / 100))
 	}
 
 	buf := new(bytes.Buffer)

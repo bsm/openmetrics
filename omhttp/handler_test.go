@@ -48,7 +48,7 @@ func TestNewHandler_compression(t *testing.T) {
 		Labels: []string{"path"},
 	})
 	for i := 0; i < 1000; i++ {
-		cnt.Must(fmt.Sprintf("/i%d", i)).Add(1)
+		cnt.Must(fmt.Sprintf("/i%d", i)).MustAdd(1)
 	}
 	ep := omhttp.NewHandler(reg)
 

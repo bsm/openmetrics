@@ -27,16 +27,12 @@ func TestStateSet(t *testing.T) {
 		t.Fatalf("expected %v to be disabled", key)
 	}
 
-	if err := ist.Set("foo", true); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	ist.MustSet("foo", true)
 	if key := "foo"; !ist.IsEnabled(key) {
 		t.Fatalf("expected %v to be enabled", key)
 	}
 
-	if err := ist.Toggle("foo"); err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	ist.MustToggle("foo")
 	if key := "foo"; ist.IsEnabled(key) {
 		t.Fatalf("expected %v to be disabled", key)
 	}

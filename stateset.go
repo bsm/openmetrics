@@ -49,6 +49,11 @@ type StateSet interface {
 	// Trying to toggle an invalid state will result in a panic.
 	Toggle(name string) error
 
+	// MustSet behaves like Set but panics on invalid inputs.
+	MustSet(name string, val bool)
+	// MustToggle behaves like Toggle but panics on invalid inputs.
+	MustToggle(name string)
+
 	// IsEnabled returns true if a state is enabled.
 	IsEnabled(name string) bool
 	// Contains returns true if a state is included in the set.
@@ -132,6 +137,18 @@ func (t *stateSet) Toggle(name string) error {
 		return fmt.Errorf("invalid state %q", name)
 	}
 	return nil
+}
+
+func (t *stateSet) MustSet(name string, enabled bool) {
+	if err := t.Set(name, enabled); err != nil {
+		panic(err)
+	}
+}
+
+func (t *stateSet) MustToggle(name string) {
+	if err := t.Toggle(name); err != nil {
+		panic(err)
+	}
 }
 
 func (t *stateSet) IsEnabled(name string) bool {
