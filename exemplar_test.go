@@ -35,7 +35,7 @@ func TestNewExemplar(t *testing.T) {
 		}
 	})
 
-	t.Run("too long", func(t *testing.T) {
+	t.Run("label-set too long", func(t *testing.T) {
 		if _, err := NewExemplar(1.2, mockTime, LabelSet{
 			{"one", "123456789.123456789.123456789.123456789.123456789.123456789.1"},
 			{"two", "123456789.123456789.123456789.123456789.123456789.123456789.12"},

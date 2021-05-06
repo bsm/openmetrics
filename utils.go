@@ -19,7 +19,7 @@ func isValidMetricName(s string) bool {
 	}
 
 	for i, r := range s {
-		if !(isAlpha(r) || r == '_' || r == ':' || (i > 0 && isDigit(r))) {
+		if !(isAlpha(r) || r == ':' || (i > 0 && r == '_') || (i > 0 && isDigit(r))) {
 			return false
 		}
 	}

@@ -14,7 +14,7 @@ type ErrAlreadyRegistered struct {
 }
 
 func (e ErrAlreadyRegistered) Error() string {
-	return fmt.Sprintf("metric %q is already registered", e.Existing.Desc().fullName())
+	return fmt.Sprintf("metric %q is already registered", e.Existing.Desc().FullName())
 }
 
 var defaultRegisty = NewRegistry()

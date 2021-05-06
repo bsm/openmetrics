@@ -7,9 +7,15 @@ import (
 	"github.com/bsm/openmetrics/internal/metro"
 )
 
+const helpMaxLen = 140
+
+var (
+	errHelpTooLong = fmt.Errorf("help is too long (maximum %d characters)", helpMaxLen)
+)
+
 // Desc contains the metric family description.
 type Desc struct {
-	// Name if the metric (required).
+	// Name of the metric (required).
 	Name string
 	// Unit specifies MetricFamily units.
 	Unit string
@@ -21,6 +27,7 @@ type Desc struct {
 	Labels []string
 }
 
+// Validate validates the description.
 func (d *Desc) Validate() error {
 	// ensure name is ABNF valid
 	if !isValidMetricName(d.Name) {
@@ -34,13 +41,20 @@ func (d *Desc) Validate() error {
 		}
 	}
 
+	// ensure name contains no unit suffix
+	if d.Unit != "" && strings.HasSuffix(d.Name, d.Unit) && strings.HasSuffix(d.Name[:len(d.Name)-len(d.Unit)], "_") {
+		return fmt.Errorf("metric name %q must not include the unit", d.Name)
+	}
+
 	// ensure unit name is valid
 	if !isValidMetricUnit(d.Unit) {
-		return fmt.Errorf("unit name %q is invalid", d.Unit)
+		return fmt.Errorf("unit %q is invalid", d.Unit)
 	}
 
 	// ensure help is valid
-	if !isValidMetricHelp(d.Help) {
+	if len(d.Help) > helpMaxLen {
+		return errHelpTooLong
+	} else if !isValidMetricHelp(d.Help) {
 		return fmt.Errorf("help %q contains invalid characters", d.Help)
 	}
 
@@ -59,6 +73,14 @@ func (d *Desc) Validate() error {
 	}
 
 	return nil
+}
+
+// FullName returns the full metric family name.
+func (d *Desc) FullName() string {
+	if d.Unit != "" {
+		return d.Name + "_" + d.Unit
+	}
+	return d.Name
 }
 
 func (d *Desc) validateLabelValues(values []string) error {
@@ -80,13 +102,6 @@ func (d *Desc) calcID() (id uint64) {
 	id = metro.HashByte(term, id)
 	id = metro.HashString(d.Unit, id)
 	return
-}
-
-func (d *Desc) fullName() string {
-	if d.Unit != "" {
-		return d.Name + "_" + d.Unit
-	}
-	return d.Name
 }
 
 func (d *Desc) writeTo(bw *bufferedWriter, mtype MetricType) (total int, err error) {

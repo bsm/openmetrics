@@ -6,6 +6,7 @@ import (
 	. "github.com/bsm/openmetrics"
 )
 
+// https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md#metricfamily
 func TestDesc_Validate(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		examples := []Desc{
@@ -13,7 +14,7 @@ func TestDesc_Validate(t *testing.T) {
 			{Name: "foo123"},
 			{Name: "foo_bar"},
 			{Name: "foo_123"},
-			{Name: "_foo_"},
+			{Name: "foo_"},
 			{Name: ":foo:"},
 		}
 
@@ -30,6 +31,8 @@ func TestDesc_Validate(t *testing.T) {
 			{Name: "with-hyphen"},
 			{Name: "1leading_digit"},
 			{Name: "ambiguous_suffix_total"},
+			{Name: "_reserved"},
+			{Name: "with_unit", Unit: "unit"},
 		}
 
 		for i, ls := range examples {
@@ -54,6 +57,7 @@ func TestDesc_Validate(t *testing.T) {
 	t.Run("bad help", func(t *testing.T) {
 		examples := []Desc{
 			{Name: "foo", Help: "not \xff\xfe\xfd helpful"},
+			{Name: "foo", Help: "Help is a string and SHOULD be non-empty. It is used to give a brief description of the MetricFamily for human consumption and SHOULD be short enough to be used as a tooltip."},
 		}
 
 		for i, ls := range examples {
