@@ -64,9 +64,14 @@ func (l Label) IsValid() bool {
 
 const term byte = 255
 
-func calculateLabelID(labelValues ...string) (id uint64) {
-	for _, lv := range labelValues {
+func calculateLabelID(numLabels int, lvs []string) (id uint64) {
+	for _, lv := range lvs {
 		id = metro.HashString(lv, id)
+		id = metro.HashByte(term, id)
+	}
+
+	for i := len(lvs); i < numLabels; i++ {
+		id = metro.HashString("", id)
 		id = metro.HashByte(term, id)
 	}
 	return

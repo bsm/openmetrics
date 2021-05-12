@@ -16,21 +16,21 @@ import (
 func ExampleInstrument() {
 	reg := openmetrics.NewConsistentRegistry(mockNow)
 
-	// Register instruments.
-	httpRequests := reg.MustCounter(openmetrics.Desc{
+	// Register metrics.
+	httpRequests := reg.Counter(openmetrics.Desc{
 		Name:   "http_requests",
 		Labels: []string{"path", "status"},
 	})
-	httpRequestBytes := reg.MustCounter(openmetrics.Desc{
+	httpRequestBytes := reg.Counter(openmetrics.Desc{
 		Name:   "http_requests",
 		Unit:   "bytes",
 		Labels: []string{"path", "status"},
 	})
-	httpRequestTimes := reg.MustHistogram(openmetrics.Desc{
+	httpRequestTimes := reg.Histogram(openmetrics.Desc{
 		Name:   "http_requests",
 		Unit:   "seconds",
 		Labels: []string{"path", "status"},
-	}, .1, .2, 0.5, 1)
+	}, []float64{.1, .2, 0.5, 1})
 
 	// Create a mock http.ServeMux with two routes.
 	mux := http.NewServeMux()
@@ -46,9 +46,9 @@ func ExampleInstrument() {
 			elapsed = 187 * time.Millisecond
 		}
 
-		httpRequests.Must(req.URL.Path, statusString).MustAdd(1)
-		httpRequestBytes.Must(req.URL.Path, statusString).MustAdd(float64(bytes))
-		httpRequestTimes.Must(req.URL.Path, statusString).MustObserve(elapsed.Seconds())
+		httpRequests.With(req.URL.Path, statusString).Add(1)
+		httpRequestBytes.With(req.URL.Path, statusString).Add(float64(bytes))
+		httpRequestTimes.With(req.URL.Path, statusString).Observe(elapsed.Seconds())
 	})
 
 	// Serve two requests.

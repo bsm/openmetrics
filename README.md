@@ -8,7 +8,7 @@ OpenMetrics is a standalone, dependency-free implementation of [OpenMetrics v1.0
 
 ## Example
 
-To expose metrics on a HTTP server endpoint and to instrument HTTP servers, please see examples the [omhttp](./omhttp/) package.
+To expose metrics on a HTTP server endpoint and to instrument HTTP servers, please see examples in the [omhttp](./omhttp/) package.
 
 ```go
 import(
@@ -20,20 +20,20 @@ import(
 
 func main() {
 	reg := openmetrics.NewConsistentRegistry(mockNow)	// or, openmetrics.DefaultRegistry()
-	requestCount := reg.MustCounter(openmetrics.Desc{
+	requestCount := reg.Counter(openmetrics.Desc{
 		Name:	"http_request",
 		Help:	"A counter example",
 		Labels:	[]string{"status"},
 	})
-	responseTime := reg.MustHistogram(openmetrics.Desc{
+	responseTime := reg.Histogram(openmetrics.Desc{
 		Name:	"http_request",
 		Unit:	"seconds",
 		Help:	"A histogram example",
 		Labels:	[]string{"status"},
 	}, .005, .01, .05, .1, .5, 1, 5, 10)
 
-	requestCount.Must("200").Add(1)
-	responseTime.Must("200").Observe(0.56)
+	requestCount.With("200").Add(1)
+	responseTime.With("200").Observe(0.56)
 
 	var buf bytes.Buffer
 	if _, err := reg.WriteTo(&buf); err != nil {

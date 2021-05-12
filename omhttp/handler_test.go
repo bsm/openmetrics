@@ -43,12 +43,12 @@ func TestNewHandler_limitConcurrency(t *testing.T) {
 
 func TestNewHandler_compression(t *testing.T) {
 	reg := openmetrics.NewConsistentRegistry(mockNow)
-	cnt := reg.MustCounter(openmetrics.Desc{
+	cnt := reg.Counter(openmetrics.Desc{
 		Name:   "http_requests",
 		Labels: []string{"path"},
 	})
 	for i := 0; i < 1000; i++ {
-		cnt.Must(fmt.Sprintf("/i%d", i)).MustAdd(1)
+		cnt.With(fmt.Sprintf("/i%d", i)).Add(1)
 	}
 	ep := omhttp.NewHandler(reg)
 

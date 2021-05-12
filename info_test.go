@@ -8,8 +8,8 @@ import (
 )
 
 func TestInfo_AppendPoints(t *testing.T) {
-	ist := NewInfo()
-	got, err := ist.AppendPoints(nil, &mockDesc)
+	met := NewInfo(InfoOptions{})
+	got, err := met.AppendPoints(nil, &mockDesc)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -21,14 +21,29 @@ func TestInfo_AppendPoints(t *testing.T) {
 }
 
 func BenchmarkInfo(b *testing.B) {
-	ist := NewInfo()
+	met := NewInfo(InfoOptions{})
 	pts := []MetricPoint{}
 	b.Run("AppendPoints", func(b *testing.B) {
 		var err error
 		for i := 0; i < b.N; i++ {
-			if pts, err = ist.AppendPoints(pts[:0], &mockDesc); err != nil {
+			if pts, err = met.AppendPoints(pts[:0], &mockDesc); err != nil {
 				b.Fatalf("expected no error, got %v", err)
 			}
+		}
+	})
+}
+
+func BenchmarkInfoFamily(b *testing.B) {
+	reg := NewRegistry()
+	cnt := reg.Info(Desc{
+		Name:   "foo",
+		Labels: []string{"one", "two"},
+	})
+	lvs := []string{"hi", "lo"}
+
+	b.Run("With", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			cnt.With(lvs...)
 		}
 	})
 }

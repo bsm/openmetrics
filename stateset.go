@@ -11,48 +11,37 @@ type StateSetFamily interface {
 	MetricFamily
 
 	// With returns a StateSet for the given label values.
-	With(labelValues ...string) (StateSet, error)
-	// Must behaves like With but panics on errors.
-	Must(labelValues ...string) StateSet
+	With(labelValues ...string) StateSet
 }
 
 type stateSetFamily struct {
 	metricFamily
 }
 
-func (f *stateSetFamily) Must(labelValues ...string) StateSet {
-	ist, err := f.With(labelValues...)
+func (f *stateSetFamily) With(labelValues ...string) StateSet {
+	met, err := f.with(labelValues...)
 	if err != nil {
-		panic(err)
+		f.onError(err)
+		return nullStateSet{}
 	}
-	return ist
-}
-
-func (f *stateSetFamily) With(labelValues ...string) (StateSet, error) {
-	ist, err := f.with(labelValues...)
-	if err != nil {
-		return nil, err
-	}
-	return ist.(StateSet), nil
+	return met.(StateSet)
 }
 
 // ----------------------------------------------------------------------------
 
-// StateSet is an Instrument.
+// StateSetOptions configure StateSet instances.
+type StateSetOptions struct {
+	OnError ErrorHandler // defaults to WarnOnError
+}
+
+// StateSet is a Metric.
 type StateSet interface {
-	Instrument
+	Metric
 
 	// Set sets a state by name.
-	// Trying to set an invalid state will result in a panic.
-	Set(name string, val bool) error
+	Set(name string, val bool)
 	// Toggle toggles a state by name.
-	// Trying to toggle an invalid state will result in a panic.
-	Toggle(name string) error
-
-	// MustSet behaves like Set but panics on invalid inputs.
-	MustSet(name string, val bool)
-	// MustToggle behaves like Toggle but panics on invalid inputs.
-	MustToggle(name string)
+	Toggle(name string)
 
 	// IsEnabled returns true if a state is enabled.
 	IsEnabled(name string) bool
@@ -81,12 +70,13 @@ func (s stateSetStateSlice) Less(i, j int) bool { return s[i].Name < s[j].Name }
 func (s stateSetStateSlice) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 type stateSet struct {
-	states stateSetStateSlice
-	mu     sync.RWMutex
+	states  stateSetStateSlice
+	onError ErrorHandler
+	mu      sync.RWMutex
 }
 
 // NewStateSet inits a new StateSet.
-func NewStateSet(names ...string) StateSet {
+func NewStateSet(names []string, opts StateSetOptions) StateSet {
 	states := make(stateSetStateSlice, 0, len(names))
 	seen := make(map[string]struct{}, len(names))
 	for _, name := range names {
@@ -95,14 +85,20 @@ func NewStateSet(names ...string) StateSet {
 			seen[name] = struct{}{}
 		}
 	}
-	return &stateSet{states: states}
+
+	onError := opts.OnError
+	if onError == nil {
+		onError = WarnOnError
+	}
+
+	return &stateSet{states: states, onError: onError}
 }
 
-func (t *stateSet) AppendPoints(dst []MetricPoint, desc *Desc) ([]MetricPoint, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
+func (m *stateSet) AppendPoints(dst []MetricPoint, desc *Desc) ([]MetricPoint, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
-	for _, s := range t.states {
+	for _, s := range m.states {
 		dst = append(dst, MetricPoint{
 			Label: Label{Name: desc.Name, Value: s.Name},
 			Value: s.NumValue(),
@@ -111,73 +107,59 @@ func (t *stateSet) AppendPoints(dst []MetricPoint, desc *Desc) ([]MetricPoint, e
 	return dst, nil
 }
 
-func (t *stateSet) Set(name string, enabled bool) error {
-	t.mu.Lock()
-	pos, ok := t.search(name)
+func (m *stateSet) Set(name string, enabled bool) {
+	m.mu.Lock()
+	pos, ok := m.search(name)
 	if ok {
-		t.states[pos].Enabled = enabled
+		m.states[pos].Enabled = enabled
 	}
-	t.mu.Unlock()
+	m.mu.Unlock()
 
 	if !ok {
-		return fmt.Errorf("invalid state %q", name)
+		m.onError(fmt.Errorf("attempted to set invalid state %q", name))
 	}
-	return nil
 }
 
-func (t *stateSet) Toggle(name string) error {
-	t.mu.Lock()
-	pos, ok := t.search(name)
+func (m *stateSet) Toggle(name string) {
+	m.mu.Lock()
+	pos, ok := m.search(name)
 	if ok {
-		t.states[pos].Enabled = !t.states[pos].Enabled
+		m.states[pos].Enabled = !m.states[pos].Enabled
 	}
-	t.mu.Unlock()
+	m.mu.Unlock()
 
 	if !ok {
-		return fmt.Errorf("invalid state %q", name)
-	}
-	return nil
-}
-
-func (t *stateSet) MustSet(name string, enabled bool) {
-	if err := t.Set(name, enabled); err != nil {
-		panic(err)
+		m.onError(fmt.Errorf("attempted to toggle invalid state %q", name))
 	}
 }
 
-func (t *stateSet) MustToggle(name string) {
-	if err := t.Toggle(name); err != nil {
-		panic(err)
-	}
-}
-
-func (t *stateSet) IsEnabled(name string) bool {
+func (m *stateSet) IsEnabled(name string) bool {
 	var v bool
-	t.mu.RLock()
-	if pos, ok := t.search(name); ok {
-		v = t.states[pos].Enabled
+	m.mu.RLock()
+	if pos, ok := m.search(name); ok {
+		v = m.states[pos].Enabled
 	}
-	t.mu.RUnlock()
+	m.mu.RUnlock()
 	return v
 }
 
-func (t *stateSet) Contains(name string) bool {
+func (m *stateSet) Contains(name string) bool {
 	var v bool
-	t.mu.RLock()
-	_, v = t.search(name)
-	t.mu.RUnlock()
+	m.mu.RLock()
+	_, v = m.search(name)
+	m.mu.RUnlock()
 	return v
 }
 
-func (t *stateSet) Len() int {
-	t.mu.RLock()
-	v := len(t.states)
-	t.mu.RUnlock()
+func (m *stateSet) Len() int {
+	m.mu.RLock()
+	v := len(m.states)
+	m.mu.RUnlock()
 	return v
 }
 
-func (t *stateSet) search(name string) (int, bool) {
-	sl := t.states
+func (m *stateSet) search(name string) (int, bool) {
+	sl := m.states
 	if len(sl) > 20 {
 		pos := sort.Search(len(sl), func(i int) bool { return sl[i].Name >= name })
 		if pos < len(sl) && sl[pos].Name == name {
@@ -193,3 +175,13 @@ func (t *stateSet) search(name string) (int, bool) {
 	}
 	return -1, false
 }
+
+type nullStateSet struct{}
+
+func (nullStateSet) AppendPoints(dst []MetricPoint, _ *Desc) ([]MetricPoint, error) { return dst, nil }
+
+func (nullStateSet) Set(_ string, _ bool)    {}
+func (nullStateSet) Toggle(_ string)         {}
+func (nullStateSet) IsEnabled(_ string) bool { return false }
+func (nullStateSet) Contains(_ string) bool  { return false }
+func (nullStateSet) Len() int                { return 0 }
