@@ -2,7 +2,6 @@ package openmetrics
 
 import (
 	"fmt"
-	"sort"
 	"sync"
 )
 
@@ -43,6 +42,9 @@ type StateSet interface {
 	// Toggle toggles a state by name.
 	Toggle(name string)
 
+	// Reset resets the states.
+	Reset(StateSetOptions)
+
 	// IsEnabled returns true if a state is enabled.
 	IsEnabled(name string) bool
 	// Contains returns true if a state is included in the set.
@@ -51,57 +53,37 @@ type StateSet interface {
 	Len() int
 }
 
-type stateSetState struct {
-	Name    string
-	Enabled bool
-}
-
-func (s stateSetState) NumValue() float64 {
-	if s.Enabled {
-		return 1
-	}
-	return 0
-}
-
-type stateSetStateSlice []stateSetState
-
-func (s stateSetStateSlice) Len() int           { return len(s) }
-func (s stateSetStateSlice) Less(i, j int) bool { return s[i].Name < s[j].Name }
-func (s stateSetStateSlice) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-
 type stateSet struct {
-	states  stateSetStateSlice
+	names   []string
+	values  []bool
 	onError ErrorHandler
 	mu      sync.RWMutex
 }
 
 // NewStateSet inits a new StateSet.
 func NewStateSet(names []string, opts StateSetOptions) StateSet {
-	states := make(stateSetStateSlice, 0, len(names))
+	unique := make([]string, 0, len(names))
 	seen := make(map[string]struct{}, len(names))
 	for _, name := range names {
 		if _, ok := seen[name]; !ok {
-			states = append(states, stateSetState{Name: name})
+			unique = append(unique, name)
 			seen[name] = struct{}{}
 		}
 	}
 
-	onError := opts.OnError
-	if onError == nil {
-		onError = WarnOnError
-	}
-
-	return &stateSet{states: states, onError: onError}
+	m := &stateSet{names: unique, values: make([]bool, len(unique))}
+	m.Reset(opts)
+	return m
 }
 
 func (m *stateSet) AppendPoints(dst []MetricPoint, desc *Desc) ([]MetricPoint, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	for _, s := range m.states {
+	for i, name := range m.names {
 		dst = append(dst, MetricPoint{
-			Label: Label{Name: desc.Name, Value: s.Name},
-			Value: s.NumValue(),
+			Label: Label{Name: desc.Name, Value: name},
+			Value: m.numValue(i),
 		})
 	}
 	return dst, nil
@@ -111,7 +93,7 @@ func (m *stateSet) Set(name string, enabled bool) {
 	m.mu.Lock()
 	pos, ok := m.search(name)
 	if ok {
-		m.states[pos].Enabled = enabled
+		m.values[pos] = enabled
 	}
 	m.mu.Unlock()
 
@@ -124,7 +106,7 @@ func (m *stateSet) Toggle(name string) {
 	m.mu.Lock()
 	pos, ok := m.search(name)
 	if ok {
-		m.states[pos].Enabled = !m.states[pos].Enabled
+		m.values[pos] = !m.values[pos]
 	}
 	m.mu.Unlock()
 
@@ -133,11 +115,25 @@ func (m *stateSet) Toggle(name string) {
 	}
 }
 
+func (m *stateSet) Reset(opts StateSetOptions) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for i := range m.values {
+		m.values[i] = false
+	}
+
+	m.onError = opts.OnError
+	if m.onError == nil {
+		m.onError = WarnOnError
+	}
+}
+
 func (m *stateSet) IsEnabled(name string) bool {
 	var v bool
 	m.mu.RLock()
 	if pos, ok := m.search(name); ok {
-		v = m.states[pos].Enabled
+		v = m.values[pos]
 	}
 	m.mu.RUnlock()
 	return v
@@ -153,27 +149,25 @@ func (m *stateSet) Contains(name string) bool {
 
 func (m *stateSet) Len() int {
 	m.mu.RLock()
-	v := len(m.states)
+	v := len(m.names)
 	m.mu.RUnlock()
 	return v
 }
 
 func (m *stateSet) search(name string) (int, bool) {
-	sl := m.states
-	if len(sl) > 20 {
-		pos := sort.Search(len(sl), func(i int) bool { return sl[i].Name >= name })
-		if pos < len(sl) && sl[pos].Name == name {
-			return pos, true
-		}
-		return -1, false
-	}
-
-	for i, s := range sl {
-		if s.Name == name {
+	for i, sn := range m.names {
+		if sn == name {
 			return i, true
 		}
 	}
 	return -1, false
+}
+
+func (m *stateSet) numValue(pos int) float64 {
+	if m.values[pos] {
+		return 1
+	}
+	return 0
 }
 
 type nullStateSet struct{}
@@ -182,6 +176,7 @@ func (nullStateSet) AppendPoints(dst []MetricPoint, _ *Desc) ([]MetricPoint, err
 
 func (nullStateSet) Set(_ string, _ bool)    {}
 func (nullStateSet) Toggle(_ string)         {}
+func (nullStateSet) Reset(_ StateSetOptions) {}
 func (nullStateSet) IsEnabled(_ string) bool { return false }
 func (nullStateSet) Contains(_ string) bool  { return false }
 func (nullStateSet) Len() int                { return 0 }
