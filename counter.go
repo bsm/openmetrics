@@ -96,7 +96,7 @@ func (m *counter) AppendPoints(dst []MetricPoint, _ *Desc) ([]MetricPoint, error
 
 func (m *counter) Add(val float64) {
 	if err := counterValidateValue(val); err != nil {
-		m.onError(err)
+		m.handleError(err)
 		return
 	}
 
@@ -107,12 +107,12 @@ func (m *counter) Add(val float64) {
 
 func (m *counter) AddExemplar(ex *Exemplar) {
 	if err := counterValidateValue(ex.Value); err != nil {
-		m.onError(err)
+		m.handleError(err)
 		return
 	}
 
 	if err := ex.Validate(); err != nil {
-		m.onError(err)
+		m.handleError(err)
 		m.Add(ex.Value)
 		return
 	}
@@ -163,6 +163,12 @@ func (m *counter) Exemplar() *Exemplar {
 	x := m.exemplar
 	m.mu.RUnlock()
 	return x
+}
+
+func (m *counter) handleError(err error) {
+	m.mu.RLock()
+	m.onError(err)
+	m.mu.RUnlock()
 }
 
 type nullCounter struct{}

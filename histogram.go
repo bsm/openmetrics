@@ -142,7 +142,7 @@ func (m *histogram) AppendPoints(dst []MetricPoint, _ *Desc) ([]MetricPoint, err
 
 func (m *histogram) Observe(val float64) {
 	if err := histogramValidateValue(val); err != nil {
-		m.onError(err)
+		m.handleError(err)
 		return
 	}
 
@@ -157,12 +157,12 @@ func (m *histogram) Observe(val float64) {
 
 func (m *histogram) ObserveExemplar(ex *Exemplar) {
 	if err := histogramValidateValue(ex.Value); err != nil {
-		m.onError(err)
+		m.handleError(err)
 		return
 	}
 
 	if err := ex.Validate(); err != nil {
-		m.onError(err)
+		m.handleError(err)
 		m.Observe(ex.Value)
 		return
 	}
@@ -206,21 +206,25 @@ func (m *histogram) Created() time.Time {
 	m.mu.RUnlock()
 	return v
 }
+
 func (m *histogram) Sum() float64 {
 	m.mu.RLock()
 	v := m.sum
 	m.mu.RUnlock()
 	return v
 }
+
 func (m *histogram) Count() int64 {
 	m.mu.RLock()
 	v := m.count
 	m.mu.RUnlock()
 	return v
 }
+
 func (m *histogram) NumBuckets() int {
 	return len(m.buckets)
 }
+
 func (m *histogram) Exemplar(n int) *Exemplar {
 	if n < 0 || n >= len(m.buckets) {
 		return nil
@@ -243,6 +247,12 @@ func (m *histogram) search(val float64) int {
 		}
 	}
 	return len(m.bounds)
+}
+
+func (m *histogram) handleError(err error) {
+	m.mu.RLock()
+	m.onError(err)
+	m.mu.RUnlock()
 }
 
 type nullHistogram struct{}

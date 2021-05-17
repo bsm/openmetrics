@@ -81,37 +81,36 @@ func (m *stateSet) AppendPoints(dst []MetricPoint, desc *Desc) ([]MetricPoint, e
 	defer m.mu.RUnlock()
 
 	for i, name := range m.names {
+		num := 0.0
+		if m.values[i] {
+			num = 1.0
+		}
+
 		dst = append(dst, MetricPoint{
 			Label: Label{Name: desc.Name, Value: name},
-			Value: m.numValue(i),
+			Value: num,
 		})
 	}
 	return dst, nil
 }
 
 func (m *stateSet) Set(name string, enabled bool) {
-	m.mu.Lock()
-	pos, ok := m.search(name)
-	if ok {
+	if pos, ok := m.search(name); ok {
+		m.mu.Lock()
 		m.values[pos] = enabled
-	}
-	m.mu.Unlock()
-
-	if !ok {
-		m.onError(fmt.Errorf("attempted to set invalid state %q", name))
+		m.mu.Unlock()
+	} else {
+		m.handleError(fmt.Errorf("attempted to set invalid state %q", name))
 	}
 }
 
 func (m *stateSet) Toggle(name string) {
-	m.mu.Lock()
-	pos, ok := m.search(name)
-	if ok {
+	if pos, ok := m.search(name); ok {
+		m.mu.Lock()
 		m.values[pos] = !m.values[pos]
-	}
-	m.mu.Unlock()
-
-	if !ok {
-		m.onError(fmt.Errorf("attempted to toggle invalid state %q", name))
+		m.mu.Unlock()
+	} else {
+		m.handleError(fmt.Errorf("attempted to toggle invalid state %q", name))
 	}
 }
 
@@ -131,27 +130,21 @@ func (m *stateSet) Reset(opts StateSetOptions) {
 
 func (m *stateSet) IsEnabled(name string) bool {
 	var v bool
-	m.mu.RLock()
 	if pos, ok := m.search(name); ok {
+		m.mu.RLock()
 		v = m.values[pos]
+		m.mu.RUnlock()
 	}
-	m.mu.RUnlock()
 	return v
 }
 
 func (m *stateSet) Contains(name string) bool {
-	var v bool
-	m.mu.RLock()
-	_, v = m.search(name)
-	m.mu.RUnlock()
+	_, v := m.search(name)
 	return v
 }
 
 func (m *stateSet) Len() int {
-	m.mu.RLock()
-	v := len(m.names)
-	m.mu.RUnlock()
-	return v
+	return len(m.names)
 }
 
 func (m *stateSet) search(name string) (int, bool) {
@@ -163,11 +156,10 @@ func (m *stateSet) search(name string) (int, bool) {
 	return -1, false
 }
 
-func (m *stateSet) numValue(pos int) float64 {
-	if m.values[pos] {
-		return 1
-	}
-	return 0
+func (m *stateSet) handleError(err error) {
+	m.mu.RLock()
+	m.onError(err)
+	m.mu.RUnlock()
 }
 
 type nullStateSet struct{}
