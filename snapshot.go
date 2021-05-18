@@ -20,10 +20,10 @@ func (s *snapshot) Reset(desc Desc, mt MetricType) {
 	}
 }
 
-func (s *snapshot) Append(m *metric) (err error) {
+func (s *snapshot) Append(m *metricWithLabels) (err error) {
 	// append points, exit early if none collected
 	origSize := len(s.pts)
-	s.pts, err = m.ist.AppendPoints(s.pts, &s.desc)
+	s.pts, err = m.met.AppendPoints(s.pts, &s.desc)
 	if err != nil || len(s.pts) == origSize {
 		return
 	}

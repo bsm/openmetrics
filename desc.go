@@ -83,18 +83,26 @@ func (d *Desc) FullName() string {
 	return d.Name
 }
 
-func (d *Desc) validateLabelValues(values []string) error {
-	if need, got := len(d.Labels), len(values); need != got {
-		return fmt.Errorf("metric %q requires exactly %d label value(s)", d.Name, need)
+func (d *Desc) copyLabelValues(values []string) []string {
+	newValues := make([]string, len(d.Labels))
+	copy(newValues, values)
+	return newValues
+}
+
+func (d *Desc) validateLabelValues(values []string) (err error) {
+	if need, got := len(d.Labels), len(values); got > need {
+		return fmt.Errorf("metric %q requires %d label value(s)", d.Name, need)
 	}
 
-	for _, lv := range d.Labels {
+	for i, lv := range values {
 		if !isValidLabelValue(lv) {
-			return fmt.Errorf("invalid label value %q", lv)
+			values[i] = lv
+			if err == nil {
+				err = fmt.Errorf("invalid label value %q", lv)
+			}
 		}
 	}
-
-	return nil
+	return
 }
 
 func (d *Desc) calcID() (id uint64) {

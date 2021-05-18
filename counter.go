@@ -7,69 +7,51 @@ import (
 	"time"
 )
 
-var (
-	errCounterNegative = fmt.Errorf("counters must be monotonically non-decreasing")
-	errCounterNaN      = fmt.Errorf("counters cannot accept NaN values")
-	errCounterInf      = fmt.Errorf("counters cannot accept infinity values")
-)
-
 // CounterFamily is a metric family of counters.
 type CounterFamily interface {
 	MetricFamily
 
-	// With returns a counter for the given label values.
-	With(labelValues ...string) (Counter, error)
-	// Must behaves like With but panics on errors.
-	Must(labelValues ...string) Counter
+	// With returns a Counter for the given label values.
+	With(labelValues ...string) Counter
 }
 
 type counterFamily struct {
 	metricFamily
 }
 
-func (f *counterFamily) Must(labelValues ...string) Counter {
-	ist, err := f.With(labelValues...)
+func (f *counterFamily) With(labelValues ...string) Counter {
+	met, err := f.with(labelValues...)
 	if err != nil {
-		panic(err)
+		f.onError(err)
+		return nullCounter{}
 	}
-	return ist
-}
-
-func (f *counterFamily) With(labelValues ...string) (Counter, error) {
-	ist, err := f.with(labelValues...)
-	if err != nil {
-		return nil, err
-	}
-	return ist.(Counter), nil
+	return met.(Counter)
 }
 
 // ----------------------------------------------------------------------------
 
-// Counter is an Instrument.
+// CounterOptions configure Counter instances.
+type CounterOptions struct {
+	CreatedAt time.Time    // defaults to time.Now()
+	OnError   ErrorHandler // defaults to WarnOnError
+}
+
+// Counter is an Metric.
 type Counter interface {
-	Instrument
+	Metric
 
-	// Add increments the total. Total MUST be monotonically
-	// non-decreasing over time.
-	Add(val float64) error
-	// AddWithExemplarAt adds a value with extra labels.
-	// The combined length of the label names and values of MUST NOT exceed 128 UTF-8 characters.
-	AddWithExemplar(val float64, labels LabelSet) error
-	// AddWithExemplarAt adds a value with extra labels at tt.
-	// The combined length of the label names and values of MUST NOT exceed 128 UTF-8 characters.
-	AddWithExemplarAt(val float64, tt time.Time, labels LabelSet) error
+	// Add increments the total. Total MUST be monotonically non-decreasing over
+	// time. Attempts to pass negative, NaN or infinity values will result in a
+	// panic.
+	Add(val float64)
 
-	// MustAdd behaves like Add but panics on invalid inputs.
-	MustAdd(val float64)
-	// MustAddWithExemplar behaves like AddWithExemplar but panics on invalid inputs.
-	MustAddWithExemplar(val float64, labels LabelSet)
-	// MustAddWithExemplarAt behaves like AddWithExemplarAt but panics on invalid inputs.
-	MustAddWithExemplarAt(val float64, tt time.Time, labels LabelSet)
+	// AddExemplar increments the total using an exemplar. Attempts to pass
+	// negative, NaN or infinity values will result in a panic. Invalid exemplars
+	// will be silently discarded.
+	AddExemplar(ex *Exemplar)
 
 	// Reset resets the created time to now and the total to 0.
-	Reset()
-	// ResetAt resets the created time to t and the total to 0.
-	ResetAt(t time.Time)
+	Reset(CounterOptions)
 
 	// Created returns the created time.
 	Created() time.Time
@@ -83,131 +65,130 @@ type counter struct {
 	total    float64
 	created  time.Time
 	exemplar *Exemplar
+	onError  ErrorHandler
 
 	mu sync.RWMutex
 }
 
 // NewCounter inits a new counter.
-func NewCounter() Counter {
-	return NewCounterAt(time.Now())
+func NewCounter(opts CounterOptions) Counter {
+	m := &counter{}
+	m.Reset(opts)
+	return m
 }
 
-// NewCounterAt inits a new value at t.
-func NewCounterAt(t time.Time) Counter {
-	return &counter{created: t}
-}
-
-func (t *counter) AppendPoints(dst []MetricPoint, _ *Desc) ([]MetricPoint, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
+func (m *counter) AppendPoints(dst []MetricPoint, _ *Desc) ([]MetricPoint, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	return append(dst,
 		MetricPoint{
 			Suffix:   SuffixTotal,
-			Value:    t.total,
-			Exemplar: t.exemplar,
+			Value:    m.total,
+			Exemplar: m.exemplar,
 		},
 		MetricPoint{
 			Suffix: SuffixCreated,
-			Value:  asEpoch(t.created),
+			Value:  asEpoch(m.created),
 		},
 	), nil
 }
 
-func (t *counter) Add(val float64) error {
-	if err := validateCounterValue(val); err != nil {
-		return err
+func (m *counter) Add(val float64) {
+	if err := counterValidateValue(val); err != nil {
+		m.handleError(err)
+		return
 	}
 
-	t.mu.Lock()
-	t.total += val
-	t.mu.Unlock()
-	return nil
+	m.mu.Lock()
+	m.total += val
+	m.mu.Unlock()
 }
 
-func (t *counter) AddWithExemplar(val float64, labels LabelSet) error {
-	return t.AddWithExemplarAt(val, time.Time{}, labels)
+func (m *counter) AddExemplar(ex *Exemplar) {
+	if err := counterValidateValue(ex.Value); err != nil {
+		m.handleError(err)
+		return
+	}
+
+	if err := ex.Validate(); err != nil {
+		m.handleError(err)
+		m.Add(ex.Value)
+		return
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.exemplar == nil {
+		m.exemplar = new(Exemplar)
+	}
+	m.exemplar.copyFrom(ex)
+	m.total += ex.Value
 }
 
-func (t *counter) AddWithExemplarAt(val float64, tt time.Time, labels LabelSet) error {
-	err := validateCounterValue(val)
-	if err != nil {
-		return err
+func (m *counter) Reset(opts CounterOptions) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.total = 0
+	m.created = opts.CreatedAt
+	m.onError = opts.OnError
+	m.exemplar = nil
+
+	if m.created.IsZero() {
+		m.created = time.Now()
 	}
-
-	var nx, ox *Exemplar
-	if nx, err = poolExemplar(val, tt, labels); err != nil {
-		return err
-	}
-
-	t.mu.Lock()
-	t.total += val
-	ox, t.exemplar = t.exemplar, nx
-	t.mu.Unlock()
-
-	if ox != nil {
-		ox.release()
-	}
-	return nil
-}
-
-func (t *counter) MustAdd(val float64) {
-	if err := t.Add(val); err != nil {
-		panic(err)
-	}
-}
-
-func (t *counter) MustAddWithExemplar(val float64, labels LabelSet) {
-	if err := t.AddWithExemplar(val, labels); err != nil {
-		panic(err)
-	}
-}
-
-func (t *counter) MustAddWithExemplarAt(val float64, tt time.Time, labels LabelSet) {
-	if err := t.AddWithExemplarAt(val, tt, labels); err != nil {
-		panic(err)
+	if m.onError == nil {
+		m.onError = WarnOnError
 	}
 }
 
-func (t *counter) Reset() {
-	t.ResetAt(time.Now())
-}
-
-func (t *counter) ResetAt(now time.Time) {
-	t.mu.Lock()
-	old := t.exemplar
-	t.total = 0
-	t.created = now
-	t.exemplar = nil
-	t.mu.Unlock()
-
-	if old != nil {
-		old.release()
-	}
-}
-
-func (t *counter) Created() time.Time {
-	t.mu.RLock()
-	v := t.created
-	t.mu.RUnlock()
+func (m *counter) Created() time.Time {
+	m.mu.RLock()
+	v := m.created
+	m.mu.RUnlock()
 	return v
 }
 
-func (t *counter) Total() float64 {
-	t.mu.RLock()
-	v := t.total
-	t.mu.RUnlock()
+func (m *counter) Total() float64 {
+	m.mu.RLock()
+	v := m.total
+	m.mu.RUnlock()
 	return v
 }
 
-func (t *counter) Exemplar() *Exemplar {
-	t.mu.RLock()
-	x := t.exemplar
-	t.mu.RUnlock()
+func (m *counter) Exemplar() *Exemplar {
+	m.mu.RLock()
+	x := m.exemplar
+	m.mu.RUnlock()
 	return x
 }
 
-func validateCounterValue(val float64) error {
+func (m *counter) handleError(err error) {
+	m.mu.RLock()
+	m.onError(err)
+	m.mu.RUnlock()
+}
+
+type nullCounter struct{}
+
+func (nullCounter) AppendPoints(dst []MetricPoint, _ *Desc) ([]MetricPoint, error) { return dst, nil }
+
+func (nullCounter) Add(_ float64)           {}
+func (nullCounter) AddExemplar(_ *Exemplar) {}
+func (nullCounter) Reset(_ CounterOptions)  {}
+func (nullCounter) Created() time.Time      { return time.Time{} }
+func (nullCounter) Total() float64          { return 0.0 }
+func (nullCounter) Exemplar() *Exemplar     { return nil }
+
+var (
+	errCounterNegative = fmt.Errorf("counters must be monotonically non-decreasing")
+	errCounterNaN      = fmt.Errorf("counters cannot accept NaN values")
+	errCounterInf      = fmt.Errorf("counters cannot accept infinity values")
+)
+
+func counterValidateValue(val float64) error {
 	if val < 0 {
 		return errCounterNegative
 	} else if math.IsNaN(val) {

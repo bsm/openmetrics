@@ -8,7 +8,7 @@ OpenMetrics is a standalone, dependency-free implementation of [OpenMetrics v1.0
 
 ## Example
 
-To expose metrics on a HTTP server endpoint and to instrument HTTP servers, please see examples the [omhttp](./omhttp/) package.
+To expose metrics on a HTTP server endpoint and to instrument HTTP servers, please see examples in the [omhttp](./omhttp/) package.
 
 ```go
 import(

@@ -21,13 +21,14 @@ var defaultRegisty = NewRegistry()
 
 // A Registry registers metric families and periodically collects their states.
 type Registry struct {
-	fams []*metricFamily
+	// Custom error handler, defaults to WarnOnError.
+	OnError ErrorHandler
 
+	fams []*metricFamily
 	snap snapshot
 	bw   bufferedWriter
 	now  func() time.Time
-
-	mu sync.Mutex
+	mu   sync.Mutex
 }
 
 // DefaultRegistry returns the default registry instance.
@@ -51,16 +52,19 @@ func NewConsistentRegistry(now func() time.Time) *Registry {
 	return reg
 }
 
-// Counter registers a counter.
-func (r *Registry) Counter(desc Desc) (CounterFamily, error) {
+// AddCounter registers a counter.
+func (r *Registry) AddCounter(desc Desc) (CounterFamily, error) {
 	if err := desc.Validate(); err != nil {
 		return nil, err
 	}
 
 	fam := counterFamily{metricFamily: metricFamily{
-		desc:    desc,
-		mt:      CounterType,
-		factory: func() (Instrument, error) { return NewCounterAt(r.now()), nil },
+		desc: desc,
+		mt:   CounterType,
+		factory: func() (Metric, error) {
+			return NewCounter(CounterOptions{CreatedAt: r.now(), OnError: r.onError()}), nil
+		},
+		onError: r.onError(),
 	}}
 	if err := r.register(&fam.metricFamily); err != nil {
 		return nil, err
@@ -69,17 +73,17 @@ func (r *Registry) Counter(desc Desc) (CounterFamily, error) {
 	return &fam, nil
 }
 
-// MustCounter registers a counter. It panics on errors.
-func (r *Registry) MustCounter(desc Desc) CounterFamily {
-	fam, err := r.Counter(desc)
+// Counter registers a counter. It panics on errors.
+func (r *Registry) Counter(desc Desc) CounterFamily {
+	fam, err := r.AddCounter(desc)
 	if err != nil {
 		panic(err)
 	}
 	return fam
 }
 
-// Gauge registers a gauge.
-func (r *Registry) Gauge(desc Desc) (GaugeFamily, error) {
+// AddGauge registers a gauge.
+func (r *Registry) AddGauge(desc Desc) (GaugeFamily, error) {
 	if err := desc.Validate(); err != nil {
 		return nil, err
 	}
@@ -87,7 +91,8 @@ func (r *Registry) Gauge(desc Desc) (GaugeFamily, error) {
 	fam := gaugeFamily{metricFamily: metricFamily{
 		desc:    desc,
 		mt:      GaugeType,
-		factory: func() (Instrument, error) { return NewGauge(), nil },
+		factory: func() (Metric, error) { return NewGauge(GaugeOptions{}), nil },
+		onError: r.onError(),
 	}}
 	if err := r.register(&fam.metricFamily); err != nil {
 		return nil, err
@@ -96,31 +101,39 @@ func (r *Registry) Gauge(desc Desc) (GaugeFamily, error) {
 	return &fam, nil
 }
 
-// MustGauge registers a gauge. It panics on errors.
-func (r *Registry) MustGauge(desc Desc) GaugeFamily {
-	fam, err := r.Gauge(desc)
+// Gauge registers a gauge. It panics on errors.
+func (r *Registry) Gauge(desc Desc) GaugeFamily {
+	fam, err := r.AddGauge(desc)
 	if err != nil {
 		panic(err)
 	}
 	return fam
 }
 
-// Histogram registers a histogram.
+// AddHistogram registers a histogram.
 //
 // The bucket boundaries for that are described
 // by the bounds. Each boundary defines the upper threshold bound of a bucket.
 //
 // When len(bounds) is 0 the histogram will be created with a single bucket with
 // an +Inf threshold.
-func (r *Registry) Histogram(desc Desc, bounds ...float64) (HistogramFamily, error) {
+func (r *Registry) AddHistogram(desc Desc, bounds []float64) (HistogramFamily, error) {
 	if err := desc.Validate(); err != nil {
 		return nil, err
 	}
 
+	// instant sanity check
+	if err := histogramValidateBounds(bounds); err != nil {
+		return nil, err
+	}
+
 	fam := histogramFamily{metricFamily: metricFamily{
-		desc:    desc,
-		mt:      HistogramType,
-		factory: func() (Instrument, error) { return NewHistogramAt(r.now(), bounds...) },
+		desc: desc,
+		mt:   HistogramType,
+		factory: func() (Metric, error) {
+			return NewHistogram(bounds, HistogramOptions{CreatedAt: r.now(), OnError: r.onError()})
+		},
+		onError: r.onError(),
 	}}
 	if err := r.register(&fam.metricFamily); err != nil {
 		return nil, err
@@ -129,23 +142,23 @@ func (r *Registry) Histogram(desc Desc, bounds ...float64) (HistogramFamily, err
 	return &fam, nil
 }
 
-// MustHistogram registers a histogram. It panics on errors.
+// Histogram registers a histogram. It panics on errors.
 //
 // The bucket boundaries for that are described
 // by the bounds. Each boundary defines the upper threshold bound of a bucket.
 //
 // When len(bounds) is 0 the histogram will be created with a single bucket with
 // an +Inf threshold.
-func (r *Registry) MustHistogram(desc Desc, bounds ...float64) HistogramFamily {
-	fam, err := r.Histogram(desc, bounds...)
+func (r *Registry) Histogram(desc Desc, bounds []float64) HistogramFamily {
+	fam, err := r.AddHistogram(desc, bounds)
 	if err != nil {
 		panic(err)
 	}
 	return fam
 }
 
-// Info registers an info.
-func (r *Registry) Info(desc Desc) (InfoFamily, error) {
+// AddInfo registers an info.
+func (r *Registry) AddInfo(desc Desc) (InfoFamily, error) {
 	if err := desc.Validate(); err != nil {
 		return nil, err
 	}
@@ -153,7 +166,8 @@ func (r *Registry) Info(desc Desc) (InfoFamily, error) {
 	fam := infoFamily{metricFamily: metricFamily{
 		desc:    desc,
 		mt:      InfoType,
-		factory: func() (Instrument, error) { return NewInfo(), nil },
+		factory: func() (Metric, error) { return NewInfo(InfoOptions{}), nil },
+		onError: r.onError(),
 	}}
 	if err := r.register(&fam.metricFamily); err != nil {
 		return nil, err
@@ -162,25 +176,28 @@ func (r *Registry) Info(desc Desc) (InfoFamily, error) {
 	return &fam, nil
 }
 
-// MustInfo registers an info. It panics on errors.
-func (r *Registry) MustInfo(desc Desc) InfoFamily {
-	fam, err := r.Info(desc)
+// Info registers an info. It panics on errors.
+func (r *Registry) Info(desc Desc) InfoFamily {
+	fam, err := r.AddInfo(desc)
 	if err != nil {
 		panic(err)
 	}
 	return fam
 }
 
-// StateSet registers a state set.
-func (r *Registry) StateSet(desc Desc, names ...string) (StateSetFamily, error) {
+// AddStateSet registers a state set.
+func (r *Registry) AddStateSet(desc Desc, names []string) (StateSetFamily, error) {
 	if err := desc.Validate(); err != nil {
 		return nil, err
 	}
 
 	fam := stateSetFamily{metricFamily: metricFamily{
-		desc:    desc,
-		mt:      StateSetType,
-		factory: func() (Instrument, error) { return NewStateSet(names...), nil },
+		desc: desc,
+		mt:   StateSetType,
+		factory: func() (Metric, error) {
+			return NewStateSet(names, StateSetOptions{OnError: r.onError()}), nil
+		},
+		onError: r.onError(),
 	}}
 	if err := r.register(&fam.metricFamily); err != nil {
 		return nil, err
@@ -189,17 +206,17 @@ func (r *Registry) StateSet(desc Desc, names ...string) (StateSetFamily, error) 
 	return &fam, nil
 }
 
-// MustStateSet registers a state set. It panics on errors.
-func (r *Registry) MustStateSet(desc Desc, names ...string) StateSetFamily {
-	fam, err := r.StateSet(desc, names...)
+// StateSet registers a state set. It panics on errors.
+func (r *Registry) StateSet(desc Desc, names []string) StateSetFamily {
+	fam, err := r.AddStateSet(desc, names)
 	if err != nil {
 		panic(err)
 	}
 	return fam
 }
 
-// Unknown registers an unknown.
-func (r *Registry) Unknown(desc Desc) (GaugeFamily, error) {
+// AddUnknown registers an unknown.
+func (r *Registry) AddUnknown(desc Desc) (GaugeFamily, error) {
 	if err := desc.Validate(); err != nil {
 		return nil, err
 	}
@@ -207,7 +224,8 @@ func (r *Registry) Unknown(desc Desc) (GaugeFamily, error) {
 	fam := gaugeFamily{metricFamily: metricFamily{
 		desc:    desc,
 		mt:      UnknownType,
-		factory: func() (Instrument, error) { return NewGauge(), nil },
+		factory: func() (Metric, error) { return NewGauge(GaugeOptions{}), nil },
+		onError: r.onError(),
 	}}
 	if err := r.register(&fam.metricFamily); err != nil {
 		return nil, err
@@ -216,9 +234,9 @@ func (r *Registry) Unknown(desc Desc) (GaugeFamily, error) {
 	return &fam, nil
 }
 
-// MustUnknown registers an unknown. It panics on errors.
-func (r *Registry) MustUnknown(desc Desc) GaugeFamily {
-	fam, err := r.Unknown(desc)
+// Unknown registers an unknown. It panics on errors.
+func (r *Registry) Unknown(desc Desc) GaugeFamily {
+	fam, err := r.AddUnknown(desc)
 	if err != nil {
 		panic(err)
 	}
@@ -278,4 +296,11 @@ func (r *Registry) register(fam *metricFamily) error {
 
 	r.fams = append(r.fams, fam)
 	return nil
+}
+
+func (r *Registry) onError() ErrorHandler {
+	if r.OnError != nil {
+		return r.OnError
+	}
+	return WarnOnError
 }

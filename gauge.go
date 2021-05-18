@@ -10,38 +10,32 @@ type GaugeFamily interface {
 	MetricFamily
 
 	// With returns a Gauge for the given label values.
-	With(labelValues ...string) (Gauge, error)
-	// Must behaves like With but panics on errors.
-	Must(labelValues ...string) Gauge
+	With(labelValues ...string) Gauge
 }
 
 type gaugeFamily struct {
 	metricFamily
 }
 
-func (f *gaugeFamily) Must(labelValues ...string) Gauge {
-	ist, err := f.With(labelValues...)
+func (f *gaugeFamily) With(labelValues ...string) Gauge {
+	met, err := f.with(labelValues...)
 	if err != nil {
-		panic(err)
+		f.onError(err)
+		return nullGauge{}
 	}
-	return ist
-}
-
-func (f *gaugeFamily) With(labelValues ...string) (Gauge, error) {
-	ist, err := f.with(labelValues...)
-	if err != nil {
-		return nil, err
-	}
-	return ist.(Gauge), nil
+	return met.(Gauge)
 }
 
 // ----------------------------------------------------------------------------
 
 const nav = 0x7FF9000000000001
 
-// Gauge is an Instrument.
+// GaugeOptions configure Gauge instances.
+type GaugeOptions struct{}
+
+// Gauge is a Metric.
 type Gauge interface {
-	Instrument
+	Metric
 
 	// Set sets the value.
 	Set(val float64)
@@ -50,45 +44,54 @@ type Gauge interface {
 	// Value returns the current value.
 	Value() float64
 	// Reset resets the gauge to its original state.
-	Reset()
+	Reset(GaugeOptions)
 }
 
 type gauge uint64
 
 // NewGauge inits a new Gauge.
-func NewGauge() Gauge {
+func NewGauge(_ GaugeOptions) Gauge {
 	var v gauge = nav
 	return &v
 }
 
-func (t *gauge) AppendPoints(dst []MetricPoint, _ *Desc) ([]MetricPoint, error) {
-	if *t == nav {
+func (m *gauge) AppendPoints(dst []MetricPoint, _ *Desc) ([]MetricPoint, error) {
+	if *m == nav {
 		return dst, nil
 	}
 
 	return append(dst,
-		MetricPoint{Value: t.Value()},
+		MetricPoint{Value: m.Value()},
 	), nil
 }
 
-func (t *gauge) Set(val float64) {
-	atomic.StoreUint64((*uint64)(t), math.Float64bits(val))
+func (m *gauge) Set(val float64) {
+	atomic.StoreUint64((*uint64)(m), math.Float64bits(val))
 }
 
-func (t *gauge) Add(val float64) {
+func (m *gauge) Add(val float64) {
 	for {
-		cur := atomic.LoadUint64((*uint64)(t))
+		cur := atomic.LoadUint64((*uint64)(m))
 		upd := math.Float64bits(math.Float64frombits(cur) + val)
-		if atomic.CompareAndSwapUint64((*uint64)(t), cur, upd) {
+		if atomic.CompareAndSwapUint64((*uint64)(m), cur, upd) {
 			return
 		}
 	}
 }
 
-func (t *gauge) Reset() {
-	atomic.StoreUint64((*uint64)(t), nav)
+func (m *gauge) Reset(_ GaugeOptions) {
+	atomic.StoreUint64((*uint64)(m), nav)
 }
 
-func (t *gauge) Value() float64 {
-	return math.Float64frombits(atomic.LoadUint64((*uint64)(t)))
+func (m *gauge) Value() float64 {
+	return math.Float64frombits(atomic.LoadUint64((*uint64)(m)))
 }
+
+type nullGauge struct{}
+
+func (nullGauge) AppendPoints(dst []MetricPoint, _ *Desc) ([]MetricPoint, error) { return dst, nil }
+
+func (nullGauge) Set(_ float64)        {}
+func (nullGauge) Add(_ float64)        {}
+func (nullGauge) Value() float64       { return 0.0 }
+func (nullGauge) Reset(_ GaugeOptions) {}

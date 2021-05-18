@@ -4,48 +4,46 @@ package openmetrics
 type InfoFamily interface {
 	MetricFamily
 
-	// With returns a Info for the given label values.
-	With(labelValues ...string) (Info, error)
-	// Must behaves like With but panics on errors.
-	Must(labelValues ...string) Info
+	// With returns an Info for the given label values.
+	With(labelValues ...string) Info
 }
 
 type infoFamily struct {
 	metricFamily
 }
 
-func (f *infoFamily) Must(labelValues ...string) Info {
-	ist, err := f.With(labelValues...)
+func (f *infoFamily) With(labelValues ...string) Info {
+	met, err := f.with(labelValues...)
 	if err != nil {
-		panic(err)
+		f.onError(err)
+		return nullInfo{}
 	}
-	return ist
-}
-
-func (f *infoFamily) With(labelValues ...string) (Info, error) {
-	ist, err := f.with(labelValues...)
-	if err != nil {
-		return nil, err
-	}
-	return ist.(Info), nil
+	return met.(Info)
 }
 
 // ----------------------------------------------------------------------------
 
-// Info is an Instrument.
+// InfoOptions configure Info instances.
+type InfoOptions struct{}
+
+// Info is a Metric.
 type Info interface {
-	Instrument
+	Metric
 }
 
 type info struct{}
 
 // NewInfo inits a new Info from labels.
-func NewInfo() Info {
+func NewInfo(_ InfoOptions) Info {
 	return info{}
 }
 
-func (t info) AppendPoints(dst []MetricPoint, _ *Desc) ([]MetricPoint, error) {
+func (m info) AppendPoints(dst []MetricPoint, _ *Desc) ([]MetricPoint, error) {
 	return append(dst,
 		MetricPoint{Suffix: SuffixInfo, Value: 1},
 	), nil
 }
+
+type nullInfo struct{}
+
+func (nullInfo) AppendPoints(dst []MetricPoint, _ *Desc) ([]MetricPoint, error) { return dst, nil }

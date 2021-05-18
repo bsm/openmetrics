@@ -100,8 +100,8 @@ const (
 	suffixTerminator
 )
 
-// An Instrument collects metric data.
-type Instrument interface {
+// A Metric collects metric data.
+type Metric interface {
 	AppendPoints([]MetricPoint, *Desc) ([]MetricPoint, error)
 }
 
@@ -120,16 +120,17 @@ type MetricFamily interface {
 	NumMetrics() int
 }
 
-type metric struct {
-	ist Instrument
+type metricWithLabels struct {
+	met Metric
 	lvs []string
 }
 
 type metricFamily struct {
 	desc    Desc
 	mt      MetricType
-	metrics map[uint64]metric
-	factory func() (Instrument, error)
+	metrics map[uint64]metricWithLabels
+	factory func() (Metric, error)
+	onError ErrorHandler
 
 	mu sync.RWMutex
 }
@@ -145,22 +146,22 @@ func (f *metricFamily) NumMetrics() int {
 	return v
 }
 
-func (f *metricFamily) with(lvs ...string) (Instrument, error) {
-	labelID := calculateLabelID(lvs...)
+func (f *metricFamily) with(lvs ...string) (Metric, error) {
+	labelID := calculateLabelID(len(f.desc.Labels), lvs)
 
 	f.mu.RLock()
-	met, ok := f.metrics[labelID]
+	mwl, ok := f.metrics[labelID]
 	f.mu.RUnlock()
 	if ok {
-		return met.ist, nil
+		return mwl.met, nil
 	}
 
 	// with write lock
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if met, ok = f.metrics[labelID]; ok {
-		return met.ist, nil
+	if mwl, ok = f.metrics[labelID]; ok {
+		return mwl.met, nil
 	}
 
 	err := f.desc.validateLabelValues(lvs)
@@ -168,16 +169,16 @@ func (f *metricFamily) with(lvs ...string) (Instrument, error) {
 		return nil, err
 	}
 
-	ist, err := f.factory()
+	met, err := f.factory()
 	if err != nil {
 		return nil, err
 	}
 
 	if f.metrics == nil {
-		f.metrics = make(map[uint64]metric, 1)
+		f.metrics = make(map[uint64]metricWithLabels, 1)
 	}
-	f.metrics[labelID] = metric{ist: ist, lvs: lvs}
-	return ist, nil
+	f.metrics[labelID] = metricWithLabels{met: met, lvs: f.desc.copyLabelValues(lvs)}
+	return met, nil
 }
 
 func (f *metricFamily) snapshot(s *snapshot) error {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -13,46 +14,58 @@ import (
 )
 
 func TestRegistry(t *testing.T) {
+	acc := new(errorCollector)
 	reg := NewConsistentRegistry(mockNow)
-	foo, err := reg.Counter(Desc{
+	reg.OnError = acc.OnError
+
+	// register counter foo - OK
+	foo := reg.Counter(Desc{
 		Name:   "foo",
 		Help:   "Helpful.",
 		Labels: []string{"status"},
 	})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
 
-	if _, err := reg.Counter(Desc{
+	// register counter foo (with extra unit) - OK
+	reg.Counter(Desc{Name: "foo", Unit: "any"})
+
+	// register counter foo again - ERROR
+	if _, err := reg.AddCounter(Desc{
 		Name:   "foo",
 		Labels: []string{"other"},
 	}); err == nil || err.Error() != `metric "foo" is already registered` {
-		t.Fatalf("expected error, got %v", err)
+		t.Errorf("expected error, got %v", err)
 	}
 
-	if _, err := reg.Counter(Desc{
-		Name: "foo",
-		Unit: "any",
-	}); err != nil {
-		t.Fatalf("expected no error, got %v", err)
+	// register counter without desc - ERROR
+	if _, err := reg.AddCounter(Desc{}); err == nil || err.Error() != `metric name "" is invalid` {
+		t.Errorf("expected error, got %v", err)
 	}
 
-	if _, err := reg.Counter(Desc{}); err == nil || err.Error() != `metric name "" is invalid` {
-		t.Fatalf("expected error, got %v", err)
+	// get counter foo
+	cnt := foo.With("201")
+	cnt.Add(1)
+	if exp, got := 1.0, cnt.Total(); exp != got {
+		t.Fatalf("expected %v, got %v", nil, got)
 	}
 
-	if _, err := foo.With("too", "many"); err == nil || err.Error() != `metric "foo" requires exactly 1 label value(s)` {
-		t.Fatalf("expected error, got %v", err)
+	// get null counter
+	cnt = foo.With("too", "many")
+	cnt.Add(1)
+	if exp, got := 0.0, cnt.Total(); exp != got {
+		t.Fatalf("expected %v, got %v", nil, got)
+	}
+	if exp, got := []string{`metric "foo" requires 1 label value(s)`}, acc.Errors(); !reflect.DeepEqual(exp, got) {
+		t.Fatalf("expected:\n\t%+v, got:\n\t%+v", exp, got)
 	}
 }
 
 func TestRegistry_Counter(t *testing.T) {
 	reg := NewConsistentRegistry(mockNow)
-	foo := reg.MustCounter(Desc{Name: "foo", Help: "Some text and \n some \" escaping"})
-	foo.Must().MustAdd(17.1)
-	bar := reg.MustCounter(Desc{Name: "bar", Unit: "hits", Labels: []string{"path"}})
-	bar.Must("/").MustAdd(2)
-	bar.Must("/about").MustAdd(1)
+	foo := reg.Counter(Desc{Name: "foo", Help: "Some text and \n some \" escaping"})
+	foo.With().Add(17.1)
+	bar := reg.Counter(Desc{Name: "bar", Unit: "hits", Labels: []string{"path"}})
+	bar.With("/").Add(2)
+	bar.With("/about").Add(1)
 
 	checkOutput(t, reg, `
 		# TYPE foo counter
@@ -71,13 +84,13 @@ func TestRegistry_Counter(t *testing.T) {
 
 func TestRegistry_Gauge(t *testing.T) {
 	reg := NewConsistentRegistry(mockNow)
-	foo := reg.MustGauge(Desc{Name: "foo", Labels: []string{"a"}})
-	foo.Must("b").Set(17.1)
-	foo.Must("c").Set(18.2)
-	bar := reg.MustGauge(Desc{Name: "bar"})
-	bar.Must().Set(-1.5)
-	baz := reg.MustGauge(Desc{Name: "bar", Unit: "bytes"})
-	baz.Must().Set(4096)
+	foo := reg.Gauge(Desc{Name: "foo", Labels: []string{"a"}})
+	foo.With("b").Set(17.1)
+	foo.With("c").Set(18.2)
+	bar := reg.Gauge(Desc{Name: "bar"})
+	bar.With().Set(-1.5)
+	baz := reg.Gauge(Desc{Name: "bar", Unit: "bytes"})
+	baz.With().Set(4096)
 
 	checkOutput(t, reg, `
 		# TYPE foo gauge
@@ -94,17 +107,24 @@ func TestRegistry_Gauge(t *testing.T) {
 
 func TestRegistry_Histogram(t *testing.T) {
 	reg := NewConsistentRegistry(mockNow)
-	foo := reg.MustHistogram(Desc{Name: "foo", Labels: []string{"a"}}, 0.01, .1, 1, 10, 100)
+	foo := reg.Histogram(Desc{Name: "foo", Labels: []string{"a"}}, []float64{0.01, .1, 1, 10, 100})
 	rnd := rand.New(rand.NewSource(1))
 	for i := 0; i < 100; i++ {
-		foo.Must("b").MustObserve(math.Exp(rnd.NormFloat64()*3 - 3))
+		foo.With("b").Observe(math.Exp(rnd.NormFloat64()*3 - 3))
 	}
 	for i := 0; i < 100; i++ {
-		foo.Must("").MustObserve(math.Exp(rnd.NormFloat64()*3 - 3))
+		foo.With("").Observe(math.Exp(rnd.NormFloat64()*3 - 3))
 	}
-	foo.Must("b").MustObserveWithExemplar(0.054, nil)
-	foo.Must("b").MustObserveWithExemplar(0.67, LabelSet{{Name: "trace_id", Value: "KOO5S4vxi0o"}})
-	foo.Must("b").MustObserveWithExemplarAt(9.8, mockTime.Truncate(time.Second), LabelSet{{Name: "trace_id", Value: "oHg5SJYRHA0"}})
+	foo.With("b").ObserveExemplar(&Exemplar{Value: 0.054})
+	foo.With("b").ObserveExemplar(&Exemplar{
+		Value:  0.67,
+		Labels: LabelSet{{Name: "trace_id", Value: "KOO5S4vxi0o"}},
+	})
+	foo.With("b").ObserveExemplar(&Exemplar{
+		Value:     9.8,
+		Timestamp: mockTime.Truncate(time.Second),
+		Labels:    LabelSet{{Name: "trace_id", Value: "oHg5SJYRHA0"}},
+	})
 
 	checkOutput(t, reg, `
 		# TYPE foo histogram
@@ -132,9 +152,9 @@ func TestRegistry_Histogram(t *testing.T) {
 
 func TestRegistry_Info(t *testing.T) {
 	reg := NewConsistentRegistry(mockNow)
-	foo := reg.MustInfo(Desc{Name: "foo", Labels: []string{"component", "ver", "sha"}})
-	foo.Must("core", "8.2.7", "8b993e3f62af95b815796f97a98fd3c54a9c7062")
-	foo.Must("auth", "8.1.9", "c8901732ef9109a7fb5c34387e815bf63f77d3f6")
+	foo := reg.Info(Desc{Name: "foo", Labels: []string{"component", "ver", "sha"}})
+	foo.With("core", "8.2.7", "8b993e3f62af95b815796f97a98fd3c54a9c7062")
+	foo.With("auth", "8.1.9", "c8901732ef9109a7fb5c34387e815bf63f77d3f6")
 
 	checkOutput(t, reg, `
 		# TYPE foo info
@@ -147,10 +167,10 @@ func TestRegistry_Info(t *testing.T) {
 func TestRegistry_StateSet(t *testing.T) {
 	reg := NewConsistentRegistry(mockNow)
 
-	foo := reg.MustStateSet(Desc{Name: "foo", Labels: []string{"a"}}, "one", "two")
-	foo.Must("b").MustSet("one", true)
-	foo.Must("c").MustSet("two", true)
-	foo.Must("")
+	foo := reg.StateSet(Desc{Name: "foo", Labels: []string{"a"}}, []string{"one", "two"})
+	foo.With("b").Set("one", true)
+	foo.With("c").Set("two", true)
+	foo.With("")
 
 	checkOutput(t, reg, `
 		# TYPE foo stateset
@@ -166,8 +186,8 @@ func TestRegistry_StateSet(t *testing.T) {
 
 func TestRegistry_Unknowns(t *testing.T) {
 	reg := NewConsistentRegistry(mockNow)
-	foo := reg.MustUnknown(Desc{Name: "foo"})
-	foo.Must().Set(17.1)
+	foo := reg.Unknown(Desc{Name: "foo"})
+	foo.With().Set(17.1)
 
 	checkOutput(t, reg, `
 		# TYPE foo unknown
@@ -180,9 +200,9 @@ func BenchmarkRegistry_WriteTo(b *testing.B) {
 	reg := NewRegistry()
 	for i := 0; i < 10_000; i++ {
 		name := fmt.Sprintf("cnt_%04d", i+1)
-		cnt := reg.MustCounter(Desc{Name: name, Unit: "hits", Labels: []string{"a"}})
-		cnt.Must("b").MustAdd(float64(i / 10))
-		cnt.Must("c").MustAdd(float64(i / 100))
+		cnt := reg.Counter(Desc{Name: name, Unit: "hits", Labels: []string{"a"}})
+		cnt.With("b").Add(float64(i / 10))
+		cnt.With("c").Add(float64(i / 100))
 	}
 
 	buf := new(bytes.Buffer)
