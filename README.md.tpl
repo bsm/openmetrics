@@ -18,30 +18,7 @@ import(
 	"github.com/bsm/openmetrics"
 )
 
-func main() {
-	reg := openmetrics.NewConsistentRegistry(mockNow)	// or, openmetrics.DefaultRegistry()
-	requestCount := reg.Counter(openmetrics.Desc{
-		Name:	"http_request",
-		Help:	"A counter example",
-		Labels:	[]string{"status"},
-	})
-	responseTime := reg.Histogram(openmetrics.Desc{
-		Name:	"http_request",
-		Unit:	"seconds",
-		Help:	"A histogram example",
-		Labels:	[]string{"status"},
-	}, .005, .01, .05, .1, .5, 1, 5, 10)
-
-	requestCount.With("200").Add(1)
-	responseTime.With("200").Observe(0.56)
-
-	var buf bytes.Buffer
-	if _, err := reg.WriteTo(&buf); err != nil {
-		panic(err)
-	}
-	fmt.Print(buf.String())
-
-}
+func main() {{ "Example" | code }}
 ```
 
 ## License
