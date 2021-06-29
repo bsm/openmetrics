@@ -9,9 +9,9 @@ import (
 func TestLabelSet_Validate(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		examples := []LabelSet{
-			{},
-			{{Name: "one", Value: "val"}, {Name: "two", Value: "val"}},
-			{{Name: "one", Value: "val"}, {Name: "two"}, {Name: "two", Value: "val"}},
+			Labels(),
+			Labels("one", "val", "two", "val"),
+			Labels("one", "val", "two", "", "two", "val"),
 		}
 
 		for i, ls := range examples {

@@ -10,6 +10,19 @@ import (
 // unique within a LabelSet.
 type LabelSet []Label
 
+// Labels constructs a LabelSet from name-value pairs.
+func Labels(nameValuePairs ...string) LabelSet {
+	if len(nameValuePairs)%2 == 1 {
+		panic("openmetrics.Labels: odd argument count")
+	}
+
+	set := make(LabelSet, 0, len(nameValuePairs)/2)
+	for i := 0; i < len(nameValuePairs); i += 2 {
+		set = set.Append(nameValuePairs[i], nameValuePairs[i+1])
+	}
+	return set
+}
+
 // Validate validates the label set and returns errors on failures.
 func (ls LabelSet) Validate() error {
 	for i, l := range ls {
@@ -31,6 +44,11 @@ func (ls LabelSet) Validate() error {
 		}
 	}
 	return nil
+}
+
+// Append appends a label to the set and returns the resulting set.
+func (ls LabelSet) Append(name, value string) LabelSet {
+	return append(ls, Label{Name: name, Value: value})
 }
 
 // AppendTo copies the labels set by appending to target returning the result.

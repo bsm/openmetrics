@@ -20,7 +20,7 @@ jobs:
           fromGitHubReleases: true
           repo: dominikh/go-tools
           version: latest
-          urlTemplate: "https://github.com/dominikh/go-tools/releases/download/2020.2.3/staticcheck_linux_amd64.tar.gz"
+          urlTemplate: "https://github.com/dominikh/go-tools/releases/download/2021.1/staticcheck_linux_amd64.tar.gz"
           pathInArchive: staticcheck/staticcheck
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Checkout
