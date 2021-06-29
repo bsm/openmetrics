@@ -7,7 +7,7 @@ on:
     branches:
       - main
 jobs:
-  test:
+  go:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -38,7 +38,5 @@ jobs:
           go-version: ${{ matrix.go-version }}
       - name: Run tests
         run: make test
-      - name: Run staticcheck
-        run: make staticcheck
       - name: Run benchmarks
         run: make bench

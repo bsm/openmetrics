@@ -225,7 +225,6 @@ func (w *bufferedWriter) writeLabels(lns, lvs []string, extra Label) (total int,
 		if err != nil {
 			return
 		}
-		first = false
 	}
 
 	if err = w.WriteByte('}'); err != nil {
