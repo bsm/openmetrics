@@ -2,12 +2,9 @@ package openmetrics
 
 import (
 	"fmt"
-	"sync"
 	"time"
 	"unicode/utf8"
 )
-
-var exemplarPool sync.Pool
 
 // Examplar value.
 type Exemplar struct {
@@ -16,19 +13,14 @@ type Exemplar struct {
 	Labels    LabelSet
 }
 
-// RecycleExemplar fetches a recycled exemplar from the pool or creates a new one.
-func RecycleExemplar() *Exemplar {
-	if v := exemplarPool.Get(); v != nil {
-		x := v.(*Exemplar)
-		x.Reset()
-		return x
-	}
-	return new(Exemplar)
-}
-
-// Reset resets the exemplar [properties.
+// Reset resets the exemplar properties.
 func (x *Exemplar) Reset() {
 	*x = Exemplar{Labels: x.Labels[:0]}
+}
+
+// AddLabel adds a label to the exemplar.
+func (x *Exemplar) AddLabel(name, value string) {
+	x.Labels = x.Labels.Append(name, value)
 }
 
 // Validate validates the exemplar. The combined length of label names and
@@ -50,12 +42,6 @@ func (x *Exemplar) Validate() error {
 	}
 
 	return nil
-}
-
-// Release releases the exemplar to the pool and makes it available for recyclings.
-// The exemplar MUST NOT be used after this method is called.
-func (x *Exemplar) Release() {
-	exemplarPool.Put(x)
 }
 
 func (x *Exemplar) copyFrom(other *Exemplar) {

@@ -34,8 +34,8 @@ func ExampleInstrument() {
 
 	// Create a mock http.ServeMux with two routes.
 	mux := http.NewServeMux()
-	mux.HandleFunc("/home", func(w http.ResponseWriter, _ *http.Request) { io.WriteString(w, "Welcome Home!") })
-	mux.HandleFunc("/about", func(w http.ResponseWriter, _ *http.Request) { io.WriteString(w, "What's this about?") })
+	mux.HandleFunc("/home", func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, "Welcome Home!") })
+	mux.HandleFunc("/about", func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, "What's this about?") })
 
 	// Init the instrumentation middleware.
 	middleware := omhttp.Instrument(func(req *http.Request, status, bytes int, elapsed time.Duration) {

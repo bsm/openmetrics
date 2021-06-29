@@ -3,6 +3,7 @@ package openmetrics_test
 import (
 	"bytes"
 	"fmt"
+	"os"
 
 	"github.com/bsm/openmetrics"
 )
@@ -51,4 +52,26 @@ func Example() {
 	// http_request_seconds_sum{status="200"} 0.56
 	// http_request_seconds_created{status="200"} 1515151515.757576
 	// # EOF
+}
+
+func ExampleExemplar() {
+	reg := openmetrics.NewConsistentRegistry(mockNow) // or, openmetrics.DefaultRegistry()
+	internalError := reg.Counter(openmetrics.Desc{
+		Name: "internal_error",
+		Help: "A counter example",
+	})
+
+	_, err := os.Stat("/.dockerenv")
+	if err != nil {
+		// the combined length of label names and values of MUST NOT exceed 128 characters
+		errmsg := err.Error()
+		if len(errmsg) > 120 {
+			errmsg = errmsg[:120]
+		}
+
+		internalError.With().AddExemplar(&openmetrics.Exemplar{
+			Value:  1,
+			Labels: openmetrics.Labels("error", errmsg),
+		})
+	}
 }
