@@ -79,17 +79,17 @@ func ExampleInstrument() {
 	// # UNIT http_requests_seconds seconds
 	// http_requests_seconds_bucket{path="/missing",status="404",le="0.1"} 0
 	// http_requests_seconds_bucket{path="/missing",status="404",le="0.2"} 1
-	// http_requests_seconds_bucket{path="/missing",status="404",le="0.5"} 0
-	// http_requests_seconds_bucket{path="/missing",status="404",le="1"} 0
-	// http_requests_seconds_bucket{path="/missing",status="404",le="+Inf"} 0
+	// http_requests_seconds_bucket{path="/missing",status="404",le="0.5"} 1
+	// http_requests_seconds_bucket{path="/missing",status="404",le="1"} 1
+	// http_requests_seconds_bucket{path="/missing",status="404",le="+Inf"} 1
 	// http_requests_seconds_count{path="/missing",status="404"} 1
 	// http_requests_seconds_sum{path="/missing",status="404"} 0.187
 	// http_requests_seconds_created{path="/missing",status="404"} 1515151515.757576
 	// http_requests_seconds_bucket{path="/home",status="200",le="0.1"} 0
 	// http_requests_seconds_bucket{path="/home",status="200",le="0.2"} 1
-	// http_requests_seconds_bucket{path="/home",status="200",le="0.5"} 0
-	// http_requests_seconds_bucket{path="/home",status="200",le="1"} 0
-	// http_requests_seconds_bucket{path="/home",status="200",le="+Inf"} 0
+	// http_requests_seconds_bucket{path="/home",status="200",le="0.5"} 1
+	// http_requests_seconds_bucket{path="/home",status="200",le="1"} 1
+	// http_requests_seconds_bucket{path="/home",status="200",le="+Inf"} 1
 	// http_requests_seconds_count{path="/home",status="200"} 1
 	// http_requests_seconds_sum{path="/home",status="200"} 0.187
 	// http_requests_seconds_created{path="/home",status="200"} 1515151515.757576

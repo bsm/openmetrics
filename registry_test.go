@@ -129,20 +129,20 @@ func TestRegistry_Histogram(t *testing.T) {
 	checkOutput(t, reg, `
 		# TYPE foo histogram
 		foo_bucket{a="b",le="0.01"} 32
-		foo_bucket{a="b",le="0.1"} 25 # {} 0.054
-		foo_bucket{a="b",le="1"} 32 # {trace_id="KOO5S4vxi0o"} 0.67
-		foo_bucket{a="b",le="10"} 10 # {trace_id="oHg5SJYRHA0"} 9.8 1515151515
-		foo_bucket{a="b",le="100"} 4
-		foo_bucket{a="b",le="+Inf"} 0
+		foo_bucket{a="b",le="0.1"} 57 # {} 0.054
+		foo_bucket{a="b",le="1"} 89 # {trace_id="KOO5S4vxi0o"} 0.67
+		foo_bucket{a="b",le="10"} 99 # {trace_id="oHg5SJYRHA0"} 9.8 1515151515
+		foo_bucket{a="b",le="100"} 103
+		foo_bucket{a="b",le="+Inf"} 103
 		foo_count{a="b"} 103
 		foo_sum{a="b"} 240.40971549095673
 		foo_created{a="b"} 1515151515.757576
 		foo_bucket{le="0.01"} 39
-		foo_bucket{le="0.1"} 27
-		foo_bucket{le="1"} 21
-		foo_bucket{le="10"} 8
-		foo_bucket{le="100"} 4
-		foo_bucket{le="+Inf"} 1
+		foo_bucket{le="0.1"} 66
+		foo_bucket{le="1"} 87
+		foo_bucket{le="10"} 95
+		foo_bucket{le="100"} 99
+		foo_bucket{le="+Inf"} 100
 		foo_count 100
 		foo_sum 320.0575197521944
 		foo_created 1515151515.757576

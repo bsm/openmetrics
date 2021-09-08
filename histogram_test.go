@@ -216,12 +216,12 @@ func TestHistogram_AppendPoints(t *testing.T) {
 		{
 			Suffix: SuffixBucket,
 			Label:  Label{Name: "le", Value: "2"},
-			Value:  1,
+			Value:  2,
 		},
 		{
 			Suffix: SuffixBucket,
 			Label:  Label{Name: "le", Value: "+Inf"},
-			Value:  0,
+			Value:  2,
 		},
 		{Suffix: SuffixCount, Value: 2},
 		{Suffix: SuffixSum, Value: 1.9},

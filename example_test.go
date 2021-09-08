@@ -45,9 +45,9 @@ func Example() {
 	// http_request_seconds_bucket{status="200",le="0.1"} 0
 	// http_request_seconds_bucket{status="200",le="0.5"} 0
 	// http_request_seconds_bucket{status="200",le="1"} 1
-	// http_request_seconds_bucket{status="200",le="5"} 0
-	// http_request_seconds_bucket{status="200",le="10"} 0
-	// http_request_seconds_bucket{status="200",le="+Inf"} 0
+	// http_request_seconds_bucket{status="200",le="5"} 1
+	// http_request_seconds_bucket{status="200",le="10"} 1
+	// http_request_seconds_bucket{status="200",le="+Inf"} 1
 	// http_request_seconds_count{status="200"} 1
 	// http_request_seconds_sum{status="200"} 0.56
 	// http_request_seconds_created{status="200"} 1515151515.757576
