@@ -3,7 +3,6 @@ package openmetrics
 import (
 	"fmt"
 	"math"
-	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -151,8 +150,8 @@ func (m *histogram) Observe(val float64) {
 
 	m.sum += val
 	m.count++
-	b := &m.buckets[m.search(val)]
-	b.count++
+
+	m.incrementBuckets(val)
 }
 
 func (m *histogram) ObserveExemplar(ex *Exemplar) {
@@ -172,12 +171,12 @@ func (m *histogram) ObserveExemplar(ex *Exemplar) {
 
 	m.sum += ex.Value
 	m.count++
-	b := &m.buckets[m.search(ex.Value)]
-	b.count++
-	if b.exemplar == nil {
-		b.exemplar = new(Exemplar)
+
+	bk := m.incrementBuckets(ex.Value)
+	if bk.exemplar == nil {
+		bk.exemplar = new(Exemplar)
 	}
-	b.exemplar.copyFrom(ex)
+	bk.exemplar.copyFrom(ex)
 }
 
 func (m *histogram) Reset(opts HistogramOptions) {
@@ -236,17 +235,19 @@ func (m *histogram) Exemplar(n int) *Exemplar {
 	return v
 }
 
-func (m *histogram) search(val float64) int {
-	if len(m.bounds) > 50 {
-		return sort.SearchFloat64s(m.bounds, val)
+// incrementBuckets increments affected buckets and returns one specific to given val.
+func (m *histogram) incrementBuckets(val float64) ( /* matching bucket */ bk *histogramBucket) {
+	// increment +Inf bucket
+	bk = &m.buckets[len(m.bounds)]
+	bk.count++
+
+	// increment matching buckets (in descending order)
+	for i := len(m.bounds) - 1; i >= 0 && val <= m.bounds[i]; i-- {
+		bk = &m.buckets[i]
+		bk.count++
 	}
 
-	for i, b := range m.bounds {
-		if val < b {
-			return i
-		}
-	}
-	return len(m.bounds)
+	return bk
 }
 
 func (m *histogram) handleError(err error) {
