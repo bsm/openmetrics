@@ -6,8 +6,8 @@ test:
 bench:
 	go test ./... -run=NONE -bench=. -benchmem
 
-staticcheck:
-	staticcheck ./...
+lint:
+	golangci-lint run
 
 doc: README.md omhttp/README.md
 

@@ -215,6 +215,36 @@ func (r *Registry) StateSet(desc Desc, names []string) StateSetFamily {
 	return fam
 }
 
+// AddSummary registers a summary.
+func (r *Registry) AddSummary(desc Desc) (SummaryFamily, error) {
+	if err := desc.Validate(); err != nil {
+		return nil, err
+	}
+
+	fam := summaryFamily{metricFamily: metricFamily{
+		desc: desc,
+		mt:   SummaryType,
+		factory: func() (Metric, error) {
+			return NewSummary(SummaryOptions{CreatedAt: r.now(), OnError: r.onError()})
+		},
+		onError: r.onError(),
+	}}
+	if err := r.register(&fam.metricFamily); err != nil {
+		return nil, err
+	}
+
+	return &fam, nil
+}
+
+// Summary registers a summary. It panics on errors.
+func (r *Registry) Summary(desc Desc) SummaryFamily {
+	fam, err := r.AddSummary(desc)
+	if err != nil {
+		panic(err)
+	}
+	return fam
+}
+
 // AddUnknown registers an unknown.
 func (r *Registry) AddUnknown(desc Desc) (GaugeFamily, error) {
 	if err := desc.Validate(); err != nil {

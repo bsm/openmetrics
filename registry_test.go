@@ -135,7 +135,7 @@ func TestRegistry_Histogram(t *testing.T) {
 		foo_bucket{a="b",le="100"} 103
 		foo_bucket{a="b",le="+Inf"} 103
 		foo_count{a="b"} 103
-		foo_sum{a="b"} 240.40971549095673
+		foo_sum{a="b"} 240.409715490957
 		foo_created{a="b"} 1515151515.757576
 		foo_bucket{le="0.01"} 39
 		foo_bucket{le="0.1"} 66
@@ -144,7 +144,7 @@ func TestRegistry_Histogram(t *testing.T) {
 		foo_bucket{le="100"} 99
 		foo_bucket{le="+Inf"} 100
 		foo_count 100
-		foo_sum 320.0575197521944
+		foo_sum 320.057519752194
 		foo_created 1515151515.757576
 		# EOF
 	`)
@@ -184,6 +184,32 @@ func TestRegistry_StateSet(t *testing.T) {
 	`)
 }
 
+func TestRegistry_Summary(t *testing.T) {
+	reg := NewConsistentRegistry(mockNow)
+	foo := reg.Summary(Desc{Name: "foo", Labels: []string{"a"}})
+	foo.With("b").Observe(17.1)
+	foo.With("c").Observe(18.2)
+	foo.With("b").Observe(19.3)
+	baz := reg.Summary(Desc{Name: "bar", Unit: "bytes"})
+	baz.With().Observe(1024)
+	baz.With().Observe(2048)
+
+	checkOutput(t, reg, `
+		# TYPE foo summary
+		foo_count{a="b"} 2
+		foo_sum{a="b"} 36.4
+		foo_created{a="b"} 1515151515.757576
+		foo_count{a="c"} 1
+		foo_sum{a="c"} 18.2
+		foo_created{a="c"} 1515151515.757576
+		# TYPE bar_bytes summary
+		# UNIT bar_bytes bytes
+		bar_bytes_count 2
+		bar_bytes_sum 3072
+		bar_bytes_created 1515151515.757576
+		# EOF
+	`)
+}
 func TestRegistry_Unknowns(t *testing.T) {
 	reg := NewConsistentRegistry(mockNow)
 	foo := reg.Unknown(Desc{Name: "foo"})
