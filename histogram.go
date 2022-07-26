@@ -42,11 +42,11 @@ type Histogram interface {
 	Metric
 
 	// Observe adds an observation. Attempts to pass negative, NaN or infinity
-	// values will result in a panic.
+	// values will result in an error.
 	Observe(float64)
 
 	// ObserveExemplar adds an observation using an exemplar. Attempts to pass
-	// negative, NaN or infinity values will result in a panic. Invalid exemplars
+	// negative, NaN or infinity values will result in an error. Invalid exemplars
 	// will be silently discarded.
 	ObserveExemplar(*Exemplar)
 
