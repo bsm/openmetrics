@@ -3,6 +3,7 @@ package openmetrics
 import (
 	"bufio"
 	"io"
+	"math"
 	"strconv"
 	"time"
 )
@@ -314,8 +315,9 @@ func (w *bufferedWriter) writeEpoch(e float64) (total int, err error) {
 	return w.writeFloat(e, 'f', 6)
 }
 
-func (w *bufferedWriter) writeFloat(val float64, fmt byte, precision int) (int, error) {
-	w.tmp = strconv.AppendFloat(w.tmp[:0], val, fmt, precision, 64)
+func (w *bufferedWriter) writeFloat(val float64, format byte, precision int) (int, error) {
+	val = math.Round(val*1e12) / 1e12
+	w.tmp = strconv.AppendFloat(w.tmp[:0], val, format, precision, 64)
 	return w.Write(w.tmp)
 }
 

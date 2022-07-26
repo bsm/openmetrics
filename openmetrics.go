@@ -33,7 +33,7 @@ func (t MetricType) String() string {
 		return "histogram"
 	case _GaugeHistogramType:
 		return "gaugehistogram"
-	case _SummaryType:
+	case SummaryType:
 		return "summary"
 	default:
 		return "unknown"
@@ -56,7 +56,7 @@ const (
 	// GaugeHistogramType must use gaugehistogram value MetricPoint values.
 	_GaugeHistogramType
 	// Summary quantiles must use summary value MetricPoint values.
-	_SummaryType
+	SummaryType
 )
 
 // MetricSuffix defines the metric suffix value.
