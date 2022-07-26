@@ -46,7 +46,7 @@ type Counter interface {
 	Add(val float64)
 
 	// AddExemplar increments the total using an exemplar. Attempts to pass
-	// negative, NaN or infinity values will result in a errors. Invalid exemplars
+	// negative, NaN or infinity values will result in an error. Invalid exemplars
 	// will be silently discarded.
 	AddExemplar(ex *Exemplar)
 
