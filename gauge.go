@@ -71,17 +71,9 @@ func (m *gauge) Set(val float64) {
 
 func (m *gauge) Add(val float64) {
 	for {
-		curBits := atomic.LoadUint64((*uint64)(m))
-
-		// if current gauge value is NaN - assume zero
-		var curFloat float64 = 0
-		if curBits != float64BitsNaN {
-			curFloat = math.Float64frombits(curBits)
-		}
-
-		sumFloat := curFloat + val
-		sumBits := math.Float64bits(sumFloat)
-		if atomic.CompareAndSwapUint64((*uint64)(m), curBits, sumBits) {
+		cur := atomic.LoadUint64((*uint64)(m))
+		sum := math.Float64bits(normalizeFloat(math.Float64frombits(cur)) + val)
+		if atomic.CompareAndSwapUint64((*uint64)(m), cur, sum) {
 			return
 		}
 	}
@@ -103,3 +95,10 @@ func (nullGauge) Set(_ float64)        {}
 func (nullGauge) Add(_ float64)        {}
 func (nullGauge) Value() float64       { return 0.0 }
 func (nullGauge) Reset(_ GaugeOptions) {}
+
+func normalizeFloat(x float64) float64 {
+	if math.IsNaN(x) {
+		return 0
+	}
+	return x
+}
