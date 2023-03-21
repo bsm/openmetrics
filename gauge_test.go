@@ -45,6 +45,23 @@ func TestGauge(t *testing.T) {
 	}
 }
 
+func TestGaugeAdd(t *testing.T) {
+	met := NewGauge(GaugeOptions{})
+
+	// make sure it's safe to be used right after creation (without any Set-s)
+	met.Add(42)
+	if exp, got := 42.0, met.Value(); exp != got {
+		t.Fatalf("expected %v, got %v", exp, got)
+	}
+
+	// and after reset
+	met.Reset(GaugeOptions{})
+	met.Add(21)
+	if exp, got := 21.0, met.Value(); exp != got {
+		t.Fatalf("expected %v, got %v", exp, got)
+	}
+}
+
 func TestGauge_AppendPoints(t *testing.T) {
 	met := NewGauge(GaugeOptions{})
 	if got, err := met.AppendPoints(nil, &mockDesc); err != nil {

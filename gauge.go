@@ -28,7 +28,7 @@ func (f *gaugeFamily) With(labelValues ...string) Gauge {
 
 // ----------------------------------------------------------------------------
 
-const nav = 0x7FF9000000000001
+const float64BitsNaN = 0x7FF9000000000001
 
 // GaugeOptions configure Gauge instances.
 type GaugeOptions struct{}
@@ -51,12 +51,12 @@ type gauge uint64
 
 // NewGauge inits a new Gauge.
 func NewGauge(_ GaugeOptions) Gauge {
-	var v gauge = nav
+	var v gauge = float64BitsNaN
 	return &v
 }
 
 func (m *gauge) AppendPoints(dst []MetricPoint, _ *Desc) ([]MetricPoint, error) {
-	if *m == nav {
+	if *m == float64BitsNaN {
 		return dst, nil
 	}
 
@@ -72,15 +72,15 @@ func (m *gauge) Set(val float64) {
 func (m *gauge) Add(val float64) {
 	for {
 		cur := atomic.LoadUint64((*uint64)(m))
-		upd := math.Float64bits(math.Float64frombits(cur) + val)
-		if atomic.CompareAndSwapUint64((*uint64)(m), cur, upd) {
+		sum := math.Float64bits(normalizeFloat(math.Float64frombits(cur)) + val)
+		if atomic.CompareAndSwapUint64((*uint64)(m), cur, sum) {
 			return
 		}
 	}
 }
 
 func (m *gauge) Reset(_ GaugeOptions) {
-	atomic.StoreUint64((*uint64)(m), nav)
+	atomic.StoreUint64((*uint64)(m), float64BitsNaN)
 }
 
 func (m *gauge) Value() float64 {
@@ -95,3 +95,10 @@ func (nullGauge) Set(_ float64)        {}
 func (nullGauge) Add(_ float64)        {}
 func (nullGauge) Value() float64       { return 0.0 }
 func (nullGauge) Reset(_ GaugeOptions) {}
+
+func normalizeFloat(x float64) float64 {
+	if math.IsNaN(x) {
+		return 0
+	}
+	return x
+}
