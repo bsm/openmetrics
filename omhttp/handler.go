@@ -112,7 +112,7 @@ func withCompression(h http.Handler) http.Handler {
 			w.Header().Set(headerContentEncoding, "gzip")
 
 			z := newGzipResponseWriter(w)
-			defer z.Close()
+			defer func() { _ = z.Close() }()
 
 			h.ServeHTTP(z, r)
 		} else {
