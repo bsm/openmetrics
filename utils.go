@@ -19,9 +19,13 @@ func isValidMetricName(s string) bool {
 	}
 
 	for i, r := range s {
-		if !(isAlpha(r) || r == ':' || (i > 0 && r == '_') || (i > 0 && isDigit(r))) {
-			return false
+		if isAlpha(r) || r == ':' {
+			continue
 		}
+		if i > 0 && (isDigit(r) || r == '_') {
+			continue
+		}
+		return false
 	}
 
 	return true
@@ -32,9 +36,13 @@ func isValidLabelName(s string) bool {
 		return false
 	}
 	for i, r := range s {
-		if !(isAlpha(r) || (i > 0 && r == '_') || (i > 0 && isDigit(r))) {
-			return false
+		if isAlpha(r) {
+			continue
 		}
+		if i > 0 && (isDigit(r) || r == '_') {
+			continue
+		}
+		return false
 	}
 	return true
 }
@@ -45,9 +53,10 @@ func isValidLabelValue(s string) bool {
 
 func isValidMetricUnit(s string) bool {
 	for _, r := range s {
-		if !(isAlpha(r) || r == '_' || r == ':' || isDigit(r)) {
-			return false
+		if isAlpha(r) || isDigit(r) || r == ':' || r == '_' {
+			continue
 		}
+		return false
 	}
 	return true
 }
